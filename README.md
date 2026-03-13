@@ -141,7 +141,7 @@ lv_conf.h             — LVGL configuration tuned for the JC4827W543 display
 ## Future Developments
 
 - [ ] No spoiler mode
-- [-] Audio notifications when a new article is fetched
+- [ ] Audio notifications when a new article is fetched
   - [X] Library inclusion and set up
   - [ ] Exclude sound during night times
   - [ ] Add Menu config option
