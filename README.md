@@ -15,7 +15,7 @@ The pre-compiled firmware is free to install from the [project website](https://
 - **Session Results** — Qualifying (Q1/Q2/Q3) and race results fetched from the live OpenF1 API, including gap to leader
 - **Latest News** — F1 headlines pulled from an RSS feed (currently English only)
 - **Night Mode** — Configurable dimming window; set start/stop times and a separate night brightness level
-- **6 Languages** — English, Italian, Spanish, French, Dutch, German
+- **7 Languages** — English, Italian, Spanish, French, Dutch, German, Norwegian
 - **Captive-portal Wi-Fi setup** — On first boot the device broadcasts an access point (`Halo-F1`); connect from any phone or laptop to enter your home network credentials. No app or computer required after initial flashing
 - **Update notifications** — The device checks for new firmware versions on startup and shows an in-app notification if an update is available
 
@@ -131,7 +131,7 @@ No personal data, Wi-Fi credentials, location or network information is ever tra
 F1Halo.ino            — Main sketch: hardware initialisation, setup(), loop()
 ui.h                  — LVGL UI construction and all event handlers
 wifi_handler.h        — Wi-Fi setup, all API fetch functions, statistics ping
-localized_strings.h   — Translated string tables for all 6 supported languages
+localized_strings.h   — Translated string tables for all 7 supported languages
 utils.h               — Utility functions (UUID generation, time helpers, etc.)
 notifications.h       — In-app notification queue and scheduler
 audio.h               — Sound playback via I²S (in the works)
