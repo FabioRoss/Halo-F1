@@ -406,6 +406,57 @@ const LanguageStrings language_strings_pt PROGMEM = {
   "Tela",
 };
 
+const LanguageStrings language_strings_no PROGMEM = {
+  {"Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Desember"},
+  {"Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Des"},
+  {"Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag"},
+  {"Søn", "Man", "Tir", "Ons", "Tor", "Fre", "Lør"},
+  "Laster inn WiFi-tilgang...",
+  "Tilkoblet WiFi!",
+  "Kunne ikke koble til WiFi, koble til nettverket \"Halo-F1\" fra din telefon for å skrive inn påloggingsinformasjonen",
+  "Ok",
+  "Ja",
+  "Nei",
+  "Lukk",
+  "Avbryt",
+  "Vellykket",
+  "Feil",
+  "Last inn klokken på nytt",
+  "Klokken har blitt oppdatert!",
+  "FP1",
+  "FP2",
+  "FP3",
+  "Kvalifisering",
+  "Q1",
+  "Q2",
+  "Q3",
+  "Løp",
+  "Sprintløp",
+  "Sprintkvalifisering",
+  "Trening",
+  "Trening 1",
+  "Trening 2",
+  "Trening 3",
+  "Kommende Grand Prix",
+  "Kommende økt",
+  "Sprinthelg",
+  "FØRERPOENG",
+  "LAGPOENG",
+  "Skann for å lese",
+  "Skann for å åpne",
+  "Språk",
+  "Engelsk",
+  "Engelsk",
+  "Lysstyrke",
+  "Kveldsmodus",
+  "Lysstyrke For Kveldsmodus",
+  "Oppdatering Tilgjengelig!",
+  "Spoilerfri Modus",
+  "Nye Resultater Tilgjengelig",
+  "Vis Resultater",
+  "Skjerm",
+};
+
 uint32_t get_team_color(String team) {
   // maybe use a switch case
   if (team == "mercedes") return 0x00D7B6;
@@ -437,6 +488,7 @@ const LanguageEntry languages[] = {
     {"Nederlands",&language_strings_nl},
     {"Deutsch",   &language_strings_de},
     {"Português", &language_strings_pt},
+    {"Norsk", &language_strings_no},
 };
 
 const size_t languageCount = sizeof(languages) / sizeof(languages[0]);
