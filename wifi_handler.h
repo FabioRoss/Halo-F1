@@ -580,7 +580,7 @@ void setupWiFiManager(bool forceConfig) {
       if (!clock_timer) clock_timer = lv_timer_create(update_ui, 60000, NULL);
       if (!f1_api_timer) f1_api_timer = lv_timer_create(update_f1_api, 3600000, NULL);
       if (!news_timer) news_timer = lv_timer_create(create_or_reload_news_ui, 5*60000, NULL);
-      if (!statistics_timer) statistics_timer = lv_timer_create(sendStatisticData, 59*6000, NULL);
+      if (!statistics_timer) statistics_timer = lv_timer_create(sendStatisticData, 59*60000, NULL);
       if (!notifications_timer) notifications_timer = lv_timer_create(notification_scheduler_task, NOTIFICATION_INTERVAL_MS, NULL);
       lv_screen_load(screen.home);
     }
