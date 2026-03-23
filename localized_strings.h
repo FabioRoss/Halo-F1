@@ -51,7 +51,7 @@ typedef struct {
 
 const LanguageStrings language_strings_en PROGMEM = {
   {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"},
-  {"Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
+  {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
   {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"},
   {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
   "WiFi access loading...",
@@ -357,7 +357,7 @@ const LanguageStrings language_strings_de PROGMEM = {
 
 const LanguageStrings language_strings_pt PROGMEM = {
   {"Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"},
-  {"Jan", "Fev", "Mar", "Abr", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"},
+  {"Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"},
   {"Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"},
   {"Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"},
   "Carregando acesso WiFi...",
@@ -408,7 +408,7 @@ const LanguageStrings language_strings_pt PROGMEM = {
 
 const LanguageStrings language_strings_no PROGMEM = {
   {"Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Desember"},
-  {"Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Des"},
+  {"Jan", "Feb", "Mar", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Des"},
   {"Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag"},
   {"Søn", "Man", "Tir", "Ons", "Tor", "Fre", "Lør"},
   "Laster inn WiFi-tilgang...",
