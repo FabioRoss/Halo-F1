@@ -6,6 +6,7 @@
 #ifndef LV_BB_SPI_LCD_H
 #define LV_BB_SPI_LCD_H
 
+#include <cstdint>
 #include <bb_spi_lcd.h>
 
 #ifdef __cplusplus
