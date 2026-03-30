@@ -772,7 +772,11 @@ lv_obj_t * create_switch(lv_obj_t * parent, const char * icon, const char * txt,
     // Apply the style only when the switch is "checked"
     //lv_obj_add_style(sw, &style_on, LV_PART_INDICATOR | LV_STATE_CHECKED);
 
-    lv_obj_add_state(sw, chk ? LV_STATE_CHECKED : 0);
+    if (chk) {
+        lv_obj_add_state(sw, LV_STATE_CHECKED);
+    } else {
+        lv_obj_clear_state(sw, LV_STATE_CHECKED);
+    }
 
     return sw;
 }
@@ -780,7 +784,11 @@ lv_obj_t * create_switch(lv_obj_t * parent, const char * icon, const char * txt,
 lv_obj_t * create_time_roller(lv_obj_t *parent, const char *icon, const char *text) {
     lv_obj_t * obj = create_text(parent, icon, text, 1);
     lv_obj_t * sw = lv_switch_create(obj);
-    lv_obj_add_state(sw, nightModeActive ? LV_STATE_CHECKED : 0);
+    if (nightModeActive) {
+        lv_obj_add_state(sw, LV_STATE_CHECKED);
+    } else {
+        lv_obj_clear_state(sw, LV_STATE_CHECKED);
+    }
     lv_obj_add_event_cb(sw, night_mode_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
 
     //lv_obj_t * cont = lv_obj_create(obj);
