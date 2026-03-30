@@ -7,7 +7,6 @@ static void populate_standings(lv_obj_t * container, int offset);
 static void populate_results(lv_obj_t * container, int offset);
 bool getLatestNews(String &title, String &link, String &desc);
 void create_or_reload_news_ui(lv_timer_t *timer);
-void setupWiFiManager(bool forceConfig);
 
 // -- STYLES -- //
 
@@ -130,29 +129,6 @@ static void timezone_override_switch_handler(lv_event_t * e) {
     // If activating: rollers already reflect current UTCoffset (set during creation),
     // so we just stop future ipapi calls from overwriting.
 }
-
-static void restart_wifimanager_event_handler(lv_event_t * e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    if (code != LV_EVENT_CLICKED) return;
-
-    // Stop timers to avoid clashes during WiFi restart
-    if (clock_timer) lv_timer_del(clock_timer);
-    clock_timer = NULL;
-    if (f1_api_timer) lv_timer_del(f1_api_timer);
-    f1_api_timer = NULL;
-    if (news_timer) lv_timer_del(news_timer);
-    news_timer = NULL;
-    if (statistics_timer) lv_timer_del(statistics_timer);
-    statistics_timer = NULL;
-    if (notifications_timer) lv_timer_del(notifications_timer);
-    notifications_timer = NULL;
-
-    // Restart WiFi Manager
-    setupWiFiManager(true);
-
-    lv_screen_load(screen.wifi);
-}
-
 
 static void night_mode_switch_handler(lv_event_t * e) {
     lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
