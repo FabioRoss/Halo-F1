@@ -113,8 +113,8 @@ bool hasSessionStarted(String utcSessionDate, String utcSessionTime) {
     time_t sessionEpoch = timegm(&tmUTC); // UTC epoch
     time_t nowUTC = time(nullptr); // Already UTC because gmtOffset_sec = 0
 
-    Serial.print("Epoch now: "); Serial.println(nowUTC);
-    Serial.print("Epoch session: "); Serial.println(sessionEpoch);
+    //Serial.print("[Utils] Epoch now: "); Serial.println(nowUTC);
+    //Serial.print("[Utils] Epoch session: "); Serial.println(sessionEpoch);
 
     return sessionEpoch <= nowUTC ? true : false;
 }
@@ -132,8 +132,8 @@ bool hasFreePracticeFinished(String utcSessionDate, String utcSessionTime) {
     time_t sessionEpoch = timegm(&tmUTC); // UTC epoch
     time_t nowUTC = time(nullptr); // Already UTC because gmtOffset_sec = 0
 
-    Serial.print("Epoch now: "); Serial.println(nowUTC);
-    Serial.print("Epoch session: "); Serial.println(sessionEpoch);
+    //Serial.print("[Utils] Epoch now: "); Serial.println(nowUTC);
+    //Serial.print("[Utils] Epoch session: "); Serial.println(sessionEpoch);
 
     return (nowUTC - sessionEpoch) >= 3900;
 }
@@ -252,17 +252,17 @@ void update_ui(lv_timer_t *timer) {
   struct tm adjustedTime;
   gmtime_r(&timeEpoch, &adjustedTime);
 
-  if (timeinfo.tm_hour == 2 && timeinfo.tm_min % 60 == 0) update_internal_clock();
+  if (adjustedTime.tm_hour == 2 && adjustedTime.tm_min % 60 == 0) update_internal_clock();
   Serial.println("[Utils.h] Updating Clock and shit");
   if (racetab_labels.clock) lv_label_set_text_fmt(racetab_labels.clock, "%02d:%02d", adjustedTime.tm_hour, adjustedTime.tm_min);
   if (racetab_labels.date) lv_label_set_text_fmt(racetab_labels.date, "%s %d, %s", localized_text->short_days[adjustedTime.tm_wday], adjustedTime.tm_mday, localized_text->months[adjustedTime.tm_mon]);
   if (racetab_labels.race_name) lv_label_set_text_fmt(racetab_labels.race_name, "%s", next_race.raceName.c_str());
 
-  if (timezoneRoller.hours) {
-    lv_roller_set_selected(timezoneRoller.hours, adjustedTime.tm_hour, LV_ANIM_ON);
+  if (!lv_obj_has_state(timezoneRoller.hours, LV_STATE_PRESSED) &&
+        !lv_obj_has_state(timezoneRoller.hours, LV_STATE_FOCUSED)) {
+      lv_roller_set_selected(timezoneRoller.hours, adjustedTime.tm_hour, LV_ANIM_OFF);
   }
 
-  Serial.println("[Utils.h] Updating Race Sessions");
   create_or_reload_race_sessions();
   Serial.println("[Utils.h] Race Sessions Updated");
 
@@ -295,12 +295,17 @@ void force_update_ui() {
   struct tm adjustedTime;
   gmtime_r(&timeEpoch, &adjustedTime);
 
-  if (timeinfo.tm_hour == 2 && timeinfo.tm_min % 60 == 0) update_internal_clock();
+  if (adjustedTime.tm_hour == 2 && adjustedTime.tm_min % 60 == 0) update_internal_clock();
   Serial.println("[Utils.h] Updating Clock and shit");
   if (racetab_labels.clock) lv_label_set_text_fmt(racetab_labels.clock, "%02d:%02d", adjustedTime.tm_hour, adjustedTime.tm_min);
   if (racetab_labels.date) lv_label_set_text_fmt(racetab_labels.date, "%s %d, %s", localized_text->short_days[adjustedTime.tm_wday], adjustedTime.tm_mday, localized_text->months[adjustedTime.tm_mon]);
   if (racetab_labels.race_name) lv_label_set_text_fmt(racetab_labels.race_name, "%s", next_race.raceName.c_str());
 
+  if (!lv_obj_has_state(timezoneRoller.hours, LV_STATE_PRESSED) &&
+        !lv_obj_has_state(timezoneRoller.hours, LV_STATE_FOCUSED)) {
+      lv_roller_set_selected(timezoneRoller.hours, adjustedTime.tm_hour, LV_ANIM_OFF);
+  }
+  
   Serial.println("[Utils.h] Updating Race Sessions");
   create_or_reload_race_sessions( true );
   Serial.println("[Utils.h] Race Sessions Updated");

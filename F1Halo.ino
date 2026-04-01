@@ -267,6 +267,12 @@ void setup() {
 
   loadSettings(); //init preferences storage, check for saved settings and load them if present
 
+  if(isNightTime() && nightModeActive) { // Adjust brightness after loading settings.
+    adjustBrightness(night_brightness);
+  } else {
+    adjustBrightness(brightness);
+  }
+
   create_ui_skeleton();
 
   setupWiFiManager(false);

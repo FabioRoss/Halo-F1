@@ -182,6 +182,7 @@ static void night_mode_roller_event_handler(lv_event_t * e) {
         adjustBrightness(brightness);
       }
 
+    } else if (code == LV_EVENT_RELEASED) {
       saveSettings();
     }
 }
@@ -409,7 +410,7 @@ void animate_results(lv_obj_t * container) {
         // Clear old rows
         lv_obj_clean(cont);
 
-        Serial.println("Standings container cleaned, populating");
+        //Serial.println("Standings container cleaned, populating");
 
         // Advance offset
         standings_offset += STANDINGS_PAGE_SIZE;
@@ -418,7 +419,7 @@ void animate_results(lv_obj_t * container) {
         // Repopulate
         populate_results(cont, standings_offset);
 
-        Serial.println("Standings Populated, fading container back in");
+       //Serial.println("Standings Populated, fading container back in");
 
         // Fade IN
         lv_anim_t a_in;
@@ -750,8 +751,13 @@ lv_obj_t * create_timezone_roller(lv_obj_t *parent, const char *icon, const char
 
     // Compute current local time to pre-populate rollers
     struct tm utcTime;
-    getLocalTime(&utcTime);
-    time_t epoch = timegm(&utcTime);
+    time_t epoch;
+    if (getLocalTime(&utcTime)) {
+        epoch = timegm(&utcTime);
+    } else {
+        // Time not yet synced; fall back to Unix epoch (00:00 UTC, 1 Jan 1970)
+        epoch = 0;
+    }
     epoch += UTCoffset;
     struct tm localTime;
     gmtime_r(&epoch, &localTime);
@@ -1047,7 +1053,7 @@ void create_or_reload_race_sessions(bool force_reload) {
   Serial.println("[UI] Race Weekend Has Started, following with results logic");
 
   current_results = last_session.name;
-  Serial.println("Last session name done");
+  //Serial.println("[UI] Current results set");
 
   if (last_session.name == "FP1" || last_session.name == "FP2" || last_session.name == "FP3") {
     Serial.println("[UI] Inside FP123");

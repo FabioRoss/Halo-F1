@@ -16,7 +16,7 @@ struct SavedSettings {
 };
 
 void saveSettings() {
-    SavedSettings s;
+    SavedSettings s{};
     s.version              = SETTINGS_VERSION;
     s.brightness           = brightness;
     s.night_brightness     = night_brightness;
@@ -34,22 +34,39 @@ void saveSettings() {
     }
 
     Serial.println("[Preferences] Saving settings to flash...");
-    preferences.begin("halo", false);
-    preferences.putBytes("cfg", &s, sizeof(s));
+
+    if (!preferences.begin("halo", false)) {
+        Serial.println("[Preferences] ERROR: Failed to open NVS for writing, settings not saved.");
+        return;
+    }
+
+    size_t written = preferences.putBytes("cfg", &s, sizeof(s));
+    if (written != sizeof(s)) {
+        Serial.println("[Preferences] ERROR: Failed to write all settings to flash, settings may be incomplete.");
+        preferences.end();
+        return;
+    }
+
     preferences.end();
     Serial.println("[Preferences] Settings saved.");
 }
 
 void loadSettings() {
-    preferences.begin("halo", true);
+    if (!preferences.begin("halo", true)) {
+        Serial.println("[Preferences] ERROR: Failed to open NVS for reading, using defaults.");
+        return;
+    }
+
     size_t len = preferences.getBytesLength("cfg");
-    SavedSettings s;
+    size_t read = 0;
+    SavedSettings s{};
+
     if (len == sizeof(SavedSettings)) {
-        preferences.getBytes("cfg", &s, sizeof(s));
+        read = preferences.getBytes("cfg", &s, sizeof(s));
     }
     preferences.end();
 
-    if (len != sizeof(SavedSettings) || s.version != SETTINGS_VERSION) {
+    if (len != sizeof(SavedSettings) || read != sizeof(SavedSettings) || s.version != SETTINGS_VERSION) {
         Serial.println("[Preferences] No valid saved settings found, using defaults.");
         return;
     }
@@ -65,6 +82,7 @@ void loadSettings() {
     timezoneOverrideActive = s.timezoneOverrideActive;
     UTCoffsetHours         = s.UTCoffsetHours;
     UTCoffset              = (long)UTCoffsetHours * 3600;
+
     if (s.languageIndex < languageCount)
         localized_text = languages[s.languageIndex].strings;
 
