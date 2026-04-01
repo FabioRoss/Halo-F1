@@ -258,7 +258,8 @@ void update_ui(lv_timer_t *timer) {
   if (racetab_labels.date) lv_label_set_text_fmt(racetab_labels.date, "%s %d, %s", localized_text->short_days[adjustedTime.tm_wday], adjustedTime.tm_mday, localized_text->months[adjustedTime.tm_mon]);
   if (racetab_labels.race_name) lv_label_set_text_fmt(racetab_labels.race_name, "%s", next_race.raceName.c_str());
 
-  if (!lv_obj_has_state(timezoneRoller.hours, LV_STATE_PRESSED) &&
+  if (timezoneRoller.hours && lv_obj_is_valid(timezoneRoller.hours) && 
+        !lv_obj_has_state(timezoneRoller.hours, LV_STATE_PRESSED) &&
         !lv_obj_has_state(timezoneRoller.hours, LV_STATE_FOCUSED)) {
       lv_roller_set_selected(timezoneRoller.hours, adjustedTime.tm_hour, LV_ANIM_OFF);
   }
@@ -301,7 +302,8 @@ void force_update_ui() {
   if (racetab_labels.date) lv_label_set_text_fmt(racetab_labels.date, "%s %d, %s", localized_text->short_days[adjustedTime.tm_wday], adjustedTime.tm_mday, localized_text->months[adjustedTime.tm_mon]);
   if (racetab_labels.race_name) lv_label_set_text_fmt(racetab_labels.race_name, "%s", next_race.raceName.c_str());
 
-  if (!lv_obj_has_state(timezoneRoller.hours, LV_STATE_PRESSED) &&
+  if (timezoneRoller.hours && lv_obj_is_valid(timezoneRoller.hours) && 
+        !lv_obj_has_state(timezoneRoller.hours, LV_STATE_PRESSED) &&
         !lv_obj_has_state(timezoneRoller.hours, LV_STATE_FOCUSED)) {
       lv_roller_set_selected(timezoneRoller.hours, adjustedTime.tm_hour, LV_ANIM_OFF);
   }
