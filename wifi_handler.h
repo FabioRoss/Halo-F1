@@ -8,7 +8,7 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("HTTP error: %d\n", httpCode);
+    Serial.printf("[News] HTTP error: %d\n", httpCode);
     http.end();
     return false;
   }
@@ -31,13 +31,13 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
     lineNum++;
     itemPos = 0;
 
-    Serial.printf("Line %d: %s\n", lineNum, line.c_str());
+    Serial.printf("[News] Line %d: %s\n", lineNum, line.c_str());
 
     if (line.indexOf("<item>") >= 0) {
       inItem = true;
       itemLine = lineNum;
       itemPos = line.indexOf("<item>");
-      Serial.printf("Line of Item: %d, Index Of Item: %d\n", itemLine, itemPos);
+      Serial.printf("[News] Line of Item: %d, Index Of Item: %d\n", itemLine, itemPos);
     }
 
     if (inItem) {
@@ -46,7 +46,7 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
         int end   = line.indexOf("]]></title>", itemPos);
         if (end > start) title = line.substring(start, end);
         title_parsed = true;
-        Serial.println("Title parsed");
+        Serial.println("[News] Title parsed");
       }
 
       if (line.indexOf("<description>", itemPos) >= 0 && desc.length() == 0) {
@@ -57,7 +57,7 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
           if (desc.length() > 300) desc = desc.substring(0, 300) + "...";
         }
         desc_parsed = true;
-        Serial.println("Desc parsed");
+        Serial.println("[News] Desc parsed");
       }
 
       if (line.indexOf("<link>", itemPos) >= 0 && link.length() == 0) {
@@ -65,7 +65,7 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
         int end   = line.indexOf("</link>", itemPos);
         if (end > start) link = line.substring(start, end);
         link_parsed = true;
-        Serial.println("Link parsed");
+        Serial.println("[News] Link parsed");
       }
 
       if (link_parsed && desc_parsed && title_parsed) {
@@ -80,9 +80,9 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
   if (link == "") return false;
   if (title == "" && desc == "") return false;
 
-  Serial.println("Title: " + title);
-  Serial.println("Link: " + link);
-  Serial.println("Desc: " + desc);
+  Serial.println("[News] Title: " + title);
+  Serial.println("[News] Link: " + link);
+  Serial.println("[News] Desc: " + desc);
 
   return true;
 }
@@ -91,10 +91,10 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
 // @TODO -- find a better way, maybe with a timer instead of while loop because it is the only blocking code we are doing
 bool getLatestNews(String &title, String &link, String &desc) {
   unsigned long long startTimestamp = millis();
-  Serial.println("Fetching News");
+  Serial.println("[News] Fetching News");
 
   while (!fetchLatestNews(title, link, desc)) {
-    Serial.println("Another cicle of news fetching");
+    Serial.println("[News] Another cycle of news fetching");
     delay(1000);
     if (startTimestamp + 30000 < millis()) return false;
   }
@@ -107,7 +107,7 @@ bool getLastSessionResults(SessionResults results[DRIVERS_NUMBER]) {
   got_new_results = false;
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected!");
+    Serial.println("[Session Results] WiFi not connected!");
     return false;
   }
 
@@ -124,7 +124,7 @@ bool getLastSessionResults(SessionResults results[DRIVERS_NUMBER]) {
 
   int httpCode = http.GET();
   if (httpCode != 200) {
-    Serial.printf("HTTP request failed for Last Session Results, code: %d\n", httpCode);
+    Serial.printf("[Session Results] HTTP request failed, code: %d\n", httpCode);
     http.end();
     return false;
   }
@@ -138,12 +138,12 @@ bool getLastSessionResults(SessionResults results[DRIVERS_NUMBER]) {
 
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
-    Serial.print("JSON parsing failed for Last Session Results: ");
+    Serial.print("[Session Results] JSON parsing failed for Last Session Results: ");
     Serial.println(error.c_str());
     return false;
   }
 
-  Serial.print("Payload: ");
+  Serial.print("[Session Results] Payload: ");
   Serial.println(payload);
 
   if (payload == "[]") return false;
@@ -205,7 +205,7 @@ bool fetch_f1_driver_standings() {
   if (statusCode != 200) { client.end(); return false; }
   error = deserializeJson(doc, client.getStream());
   client.end();
-  if (error) { Serial.printf("JSON error: %s\n", error.c_str()); return false; }
+  if (error) { Serial.printf("[Driver Standings] JSON error: %s\n", error.c_str()); return false; }
 
   JsonArray driverStandingsLists = doc["MRData"]["StandingsTable"]["StandingsLists"].as<JsonArray>();
 
@@ -251,7 +251,7 @@ bool fetch_f1_driver_standings() {
     if (statusCode != 200) { client.end(); return false; }
     error = deserializeJson(doc, client.getStream());
     client.end();
-    if (error) { Serial.printf("JSON error: %s\n", error.c_str()); return false; }
+    if (error) { Serial.printf("[Driver Standings] JSON error: %s\n", error.c_str()); return false; }
 
     JsonArray constructors = doc["MRData"]["ConstructorTable"]["Constructors"].as<JsonArray>();
     current_season.team_count = min((int)constructors.size(), 12);
@@ -295,7 +295,7 @@ bool fetch_f1_driver_standings() {
     if (statusCode != 200) { client.end(); return false; }
     error = deserializeJson(doc, client.getStream());
     client.end();
-    if (error) { Serial.printf("JSON error: %s\n", error.c_str()); return false; }
+    if (error) { Serial.printf("[Driver Standings] JSON error: %s\n", error.c_str()); return false; }
 
     current_season.season = doc["MRData"]["DriverTable"]["season"].as<String>();
     current_season.round  = "0";
@@ -335,7 +335,7 @@ bool fetch_f1_driver_standings() {
     if (statusCode != 200) { client.end(); return false; }
     error = deserializeJson(doc, client.getStream());
     client.end();
-    if (error) { Serial.printf("JSON error: %s\n", error.c_str()); return false; }
+    if (error) { Serial.printf("[Constructor Standings] JSON error: %s\n", error.c_str()); return false; }
 
     JsonArray constructorStandingsLists = doc["MRData"]["StandingsTable"]["StandingsLists"].as<JsonArray>();
 
@@ -361,7 +361,7 @@ bool fetch_f1_driver_standings() {
       if (statusCode != 200) { client.end(); return false; }
       error = deserializeJson(doc, client.getStream());
       client.end();
-      if (error) { Serial.printf("JSON error: %s\n", error.c_str()); return false; }
+      if (error) { Serial.printf("[Constructor Standings] JSON error: %s\n", error.c_str()); return false; }
       JsonArray constructors = doc["MRData"]["ConstructorTable"]["Constructors"].as<JsonArray>();
       current_season.team_count = constructors.size();
       for (size_t i = 0; i < current_season.team_count && i < 12; i++) {
@@ -407,7 +407,7 @@ bool getNextRaceInfo(NextRaceInfo &info) {
 
     DeserializationError error = deserializeJson(doc, payload);
     if (error) {
-        Serial.println("JSON parse failed");
+        Serial.println("[Next Race Info] JSON parse failed");
         return false;
     }
 
@@ -456,15 +456,16 @@ void update_f1_api(lv_timer_t *timer) {
   }
 
   if (getNextRaceInfo(next_race)) {    
-      Serial.println("Race: " + next_race.raceName);
-      Serial.println("Circuit: " + next_race.circuitName);
-      Serial.println("Country: " + next_race.country);
-      Serial.println(next_race.isSprintWeekend ? "Sprint Weekend" : "Normal Weekend");
+      Serial.println("[Next Race Info] Race: " + next_race.raceName);
+      Serial.println("[Next Race Info] Circuit: " + next_race.circuitName);
+      Serial.println("[Next Race Info] Country: " + next_race.country);
+      String next_race_type = next_race.isSprintWeekend ? "Sprint Weekend" : "Normal Weekend";
+      Serial.println("[Next Race Info] " + next_race_type);
 
       for (int i = 0; i < next_race.sessionCount; i++) {
         String has_started = "No";
         if (hasSessionStarted(next_race.sessions[i].date, next_race.sessions[i].time)) has_started = "Yes";
-          Serial.printf("%s - %s %s - Has already started: %s\n",
+          Serial.printf("[Next Race Info] %s - %s %s - Has already started: %s\n",
                         next_race.sessions[i].name.c_str(),
                         next_race.sessions[i].date.c_str(),
                         next_race.sessions[i].time.c_str(),
@@ -491,7 +492,7 @@ void sendStatisticData(lv_timer_t *timer) {
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("HTTP error: %d\n", httpCode);
+    Serial.printf("[Statistics Data] HTTP error: %d\n", httpCode);
     http.end();
     return;
   }
@@ -518,12 +519,12 @@ void sendStatisticData(lv_timer_t *timer) {
       newItem.qrLink = notification["qr"].as<String>();
       notificationQueue.push_back(newItem);
     }
-    Serial.printf("Synced: %d notifications available.\n", notificationQueue.size());
+    Serial.printf("[Statistics Data] Synced: %d notifications available.\n", notificationQueue.size());
   }
 
   http.end();
 
-  //Serial.printf("Stats response: %s\n", payload.c_str()); // debug
+  //Serial.printf("[Statistics Data] Stats response: %s\n", payload.c_str()); // debug
   return;
 }
 
@@ -532,7 +533,7 @@ bool shouldSaveConfig = false;
 
 // WiFiManager callback notifying us of the need to save config
 void saveConfigCallback () {
-  Serial.println("Should save config");
+  Serial.println("[WiFiManager] Should save config");
   shouldSaveConfig = true;
 }
 

@@ -109,7 +109,7 @@ const LanguageStrings language_strings_en PROGMEM = {
   LV_SYMBOL_CHARGE " Need Help? Click here!",
   LV_SYMBOL_CHARGE " We got you!",
   "Scan to join our Discord server and get support!",
-  LV_SYMBOL_CHARGE " Need Help? We got you!Scan to join our Discord server and get support!",
+  LV_SYMBOL_CHARGE " Need Help? We got you! Scan to join our Discord server and get support!",
 };
 
 const LanguageStrings language_strings_it PROGMEM = {
@@ -218,12 +218,12 @@ const LanguageStrings language_strings_es PROGMEM = {
   "Nuevos Resultados Disponibles",
   "Mostrar Resultados",
   "Pantalla",
-  "Orario",
-  "Abilita Override Fuso Orario",
+  "Hora",
+  "Habilitar anulación de zona horaria",
   LV_SYMBOL_CHARGE " ¿Necesitas ayuda?",
-  LV_SYMBOL_CHARGE " ¡Te tenemos cubierto!",
-  "¡Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
-  LV_SYMBOL_CHARGE " ¿Necesitas ayuda? ¡Te tenemos cubierto! Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
+  LV_SYMBOL_CHARGE " Te tenemos cubierto!",
+  "Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
+  LV_SYMBOL_CHARGE " ¿Necesitas ayuda? Te tenemos cubierto! Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
 };
 
 const LanguageStrings language_strings_fr PROGMEM = {
@@ -276,7 +276,7 @@ const LanguageStrings language_strings_fr PROGMEM = {
   "Afficher les Resultats",
   "Affichage",
   "Heure",
-  "Activer le Override de Fuseau Horaire",
+  "Activer le remplacement du fuseau horaire",
   LV_SYMBOL_CHARGE " Besoin d'aide? Cliquez ici!",
   LV_SYMBOL_CHARGE " On s'occupe de vous!",
   "Scannez pour rejoindre notre serveur Discord et obtenir de l'aide!",
