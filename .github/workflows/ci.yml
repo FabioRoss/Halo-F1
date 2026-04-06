@@ -49,6 +49,7 @@ jobs:
                       - name: bb_spi_lcd
                         version: 2.7.1
                       - name: bb_captouch
+                      - name: incbin
                   sketch-paths: |
                       - ./
                   cli-compile-flags: |
