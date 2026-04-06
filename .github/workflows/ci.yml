@@ -31,7 +31,7 @@ jobs:
             - name: Remove TOUCH_CAPACITIVE define (resistive build)
               if: ${{ matrix.define_touch == false }}
               run: |
-                  sed -i 's|^#define TOUCH_CAPACITIVE$|// #define TOUCH_CAPACITIVE|' F1Halo.ino
+                  sed -i 's|^#define TOUCH_CAPACITIVE$|// #define TOUCH_CAPACITIVE|' Halo-F1.ino
 
             - name: Compile sketch
               uses: arduino/compile-sketches@v1
