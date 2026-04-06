@@ -1,4 +1,4 @@
-name: Build F1Halo
+name: Build Halo F1
 
 on:
     release:
@@ -57,3 +57,26 @@ jobs:
                       - "compiler.cpp.extra_flags=-DLV_CONF_INCLUDE_SIMPLE -Wa,-I{build.source.path}"
                       - --build-property
                       - "compiler.c.extra_flags=-DLV_CONF_INCLUDE_SIMPLE -Wa,-I{build.source.path}"
+                      - --output-dir
+                      - ./build
+
+            - name: Rename binary
+              run: |
+                  FILE=$(ls ./build/*.merged.bin 2>/dev/null | head -1 || ls ./build/*.bin | head -1)
+                  mv "$FILE" ./build/Halo-F1-${{ matrix.touch }}.bin
+
+                        
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: Halo-F1-${{ matrix.touch }}
+                  path: ./build/Halo-F1-${{ matrix.touch }}.bin
+
+            - name: Upload to release
+              if: github.event_name == 'release'
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: ./build/Halo-F1-${{ matrix.touch }}.bin
+
+
+
