@@ -26,9 +26,9 @@ const int DRIVERS_NUMBER = 22;
 #define SCREEN_HEIGHT 480
 
 #ifdef TOUCH_CAPACITIVE
-const String fw_version = "1.2.1";
+const String fw_version = "1.2.2-beta";
 #else
-const String fw_version = "1.2.1-R";
+const String fw_version = "1.2.2-R-beta";
 #endif
 
 
