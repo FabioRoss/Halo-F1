@@ -7,6 +7,7 @@ static void populate_standings(lv_obj_t * container, int offset);
 static void populate_results(lv_obj_t * container, int offset);
 bool getLatestNews(String &title, String &link, String &desc);
 void create_or_reload_news_ui(lv_timer_t *timer);
+void create_or_reload_standings_tab_ui();
 
 // -- STYLES -- //
 
@@ -31,6 +32,11 @@ static lv_style_t style_news_title;
 static lv_style_t style_news_desc;
 static lv_style_t style_qr_caption;
 static bool news_styles_initialized = false;
+// STANDINGS TAB
+static lv_style_t style_standings_tab_btn_active;
+static lv_style_t style_standings_tab_btn_inactive;
+static lv_style_t style_standings_tab_list;
+static bool standings_tab_styles_initialized = false;
 
 
 void adjustBrightness(uint8_t new_brightness) {
@@ -47,6 +53,7 @@ static void language_selection_event_handler(lv_event_t * e) {
       localized_text = languages[sel].strings;
       Serial.printf("[UI] Language changed to: %s\n", languages[sel].displayName);
       create_or_reload_settings_ui();
+      create_or_reload_standings_tab_ui();
       force_update_ui();
       //create_or_reload_news_ui(nullptr); //takes too long
   }
@@ -1452,6 +1459,168 @@ void create_or_reload_settings_ui() {
 
 }
 
+// ── STANDINGS TAB ─────────────────────────────────────────────────────────────
+
+static void populate_full_driver_standings(lv_obj_t * container) {
+    if (current_season.driver_count == 0) {
+        lv_obj_t * lbl = lv_label_create(container);
+        lv_label_set_text(lbl, "No data");
+        lv_obj_set_style_text_color(lbl, lv_color_hex(0x888888), 0);
+        return;
+    }
+    for (int i = 0; i < current_season.driver_count && i < 30; i++) {
+        String points = String(current_season.driver_standings[i].points) + " pt.";
+        create_standings_row(
+            container,
+            current_season.driver_standings[i].position,
+            current_season.driver_standings[i].name,
+            current_season.driver_standings[i].surname,
+            points,
+            current_season.driver_standings[i].constructorId
+        );
+    }
+}
+
+static void populate_full_constructor_standings(lv_obj_t * container) {
+    if (current_season.team_count == 0) {
+        lv_obj_t * lbl = lv_label_create(container);
+        lv_label_set_text(lbl, "No data");
+        lv_obj_set_style_text_color(lbl, lv_color_hex(0x888888), 0);
+        return;
+    }
+    for (int i = 0; i < current_season.team_count && i < 12; i++) {
+        String points = String(current_season.team_standings[i].points) + " pt.";
+        create_standings_row(
+            container,
+            current_season.team_standings[i].position,
+            current_season.team_standings[i].name,
+            "",
+            points,
+            current_season.team_standings[i].id
+        );
+    }
+}
+
+static void standings_tab_update_buttons() {
+    if (standings_tab_showing_drivers) {
+        lv_obj_add_style(standings_tab_btn_drivers, &style_standings_tab_btn_active, 0);
+        lv_obj_remove_style(standings_tab_btn_drivers, &style_standings_tab_btn_inactive, 0);
+        lv_obj_add_style(standings_tab_btn_constructors, &style_standings_tab_btn_inactive, 0);
+        lv_obj_remove_style(standings_tab_btn_constructors, &style_standings_tab_btn_active, 0);
+    } else {
+        lv_obj_add_style(standings_tab_btn_constructors, &style_standings_tab_btn_active, 0);
+        lv_obj_remove_style(standings_tab_btn_constructors, &style_standings_tab_btn_inactive, 0);
+        lv_obj_add_style(standings_tab_btn_drivers, &style_standings_tab_btn_inactive, 0);
+        lv_obj_remove_style(standings_tab_btn_drivers, &style_standings_tab_btn_active, 0);
+    }
+}
+
+static void standings_tab_repopulate() {
+    lv_obj_clean(standings_tab_list);
+    if (standings_tab_showing_drivers) {
+        populate_full_driver_standings(standings_tab_list);
+    } else {
+        populate_full_constructor_standings(standings_tab_list);
+    }
+}
+
+static void standings_tab_drivers_clicked(lv_event_t * e) {
+    if (standings_tab_showing_drivers) return;
+    standings_tab_showing_drivers = true;
+    standings_tab_update_buttons();
+    standings_tab_repopulate();
+}
+
+static void standings_tab_constructors_clicked(lv_event_t * e) {
+    if (!standings_tab_showing_drivers) return;
+    standings_tab_showing_drivers = false;
+    standings_tab_update_buttons();
+    standings_tab_repopulate();
+}
+
+void create_or_reload_standings_tab_ui() {
+    Serial.println("[UI] Creating or Reloading Standings Tab UI...");
+    lv_obj_clean(tabs.standings);
+
+    // ── Lazy style init ──
+    if (!standings_tab_styles_initialized) {
+        standings_tab_styles_initialized = true;
+
+        lv_style_init(&style_standings_tab_btn_active);
+        lv_style_set_bg_opa(&style_standings_tab_btn_active, LV_OPA_COVER);
+        lv_style_set_bg_color(&style_standings_tab_btn_active, lv_color_black());
+        lv_style_set_text_color(&style_standings_tab_btn_active, lv_color_white());
+        lv_style_set_border_side(&style_standings_tab_btn_active, LV_BORDER_SIDE_BOTTOM);
+        lv_style_set_border_width(&style_standings_tab_btn_active, 3);
+        lv_style_set_border_color(&style_standings_tab_btn_active, lv_color_hex(HALO_COLOR_RED));
+        lv_style_set_radius(&style_standings_tab_btn_active, 0);
+
+        lv_style_init(&style_standings_tab_btn_inactive);
+        lv_style_set_bg_opa(&style_standings_tab_btn_inactive, LV_OPA_COVER);
+        lv_style_set_bg_color(&style_standings_tab_btn_inactive, lv_color_hex(0x000000));
+        lv_style_set_text_color(&style_standings_tab_btn_inactive, lv_color_hex(0x666666));
+        lv_style_set_border_width(&style_standings_tab_btn_inactive, 3);
+        lv_style_set_border_side(&style_standings_tab_btn_inactive, LV_BORDER_SIDE_BOTTOM);
+        lv_style_set_border_color(&style_standings_tab_btn_inactive, lv_color_hex(0x000000));
+        lv_style_set_radius(&style_standings_tab_btn_inactive, 0);
+
+
+        lv_style_init(&style_standings_tab_list);
+        lv_style_set_bg_opa(&style_standings_tab_list, LV_OPA_TRANSP);
+        lv_style_set_border_width(&style_standings_tab_list, 0);
+        lv_style_set_pad_all(&style_standings_tab_list, 0);
+        lv_style_set_pad_gap(&style_standings_tab_list, 2);
+    }
+
+    // ── Toggle button row ──
+    lv_obj_t * btn_row = lv_obj_create(tabs.standings);
+    lv_obj_remove_style_all(btn_row);
+    lv_obj_set_size(btn_row, LV_PCT(100), 32);
+    lv_obj_set_layout(btn_row, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(btn_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(btn_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(btn_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(btn_row, LV_ALIGN_TOP_MID, 0, 0);
+
+    // Drivers button
+    standings_tab_btn_drivers = lv_button_create(btn_row);
+    lv_obj_set_size(standings_tab_btn_drivers, LV_PCT(50), 30);
+    lv_obj_t * lbl_drv = lv_label_create(standings_tab_btn_drivers);
+    lv_label_set_text(lbl_drv, localized_text->driver_standings_title);
+    lv_obj_set_style_text_font(lbl_drv, &montserrat_12, 0);
+    lv_obj_center(lbl_drv);
+    lv_obj_add_event_cb(standings_tab_btn_drivers, standings_tab_drivers_clicked, LV_EVENT_CLICKED, NULL);
+
+    // Constructors button
+    standings_tab_btn_constructors = lv_button_create(btn_row);
+    lv_obj_set_size(standings_tab_btn_constructors, LV_PCT(50), 30);
+    lv_obj_t * lbl_cst = lv_label_create(standings_tab_btn_constructors);
+    lv_label_set_text(lbl_cst, localized_text->team_standings_title);
+    lv_obj_set_style_text_font(lbl_cst, &montserrat_12, 0);
+    lv_obj_center(lbl_cst);
+    lv_obj_add_event_cb(standings_tab_btn_constructors, standings_tab_constructors_clicked, LV_EVENT_CLICKED, NULL);
+
+    // Apply initial button styles
+    standings_tab_showing_drivers = true;
+    standings_tab_update_buttons();
+
+    // ── Scrollable list container ──
+    standings_tab_list = lv_obj_create(tabs.standings);
+    lv_obj_remove_style_all(standings_tab_list);
+    lv_obj_add_style(standings_tab_list, &style_standings_tab_list, 0);
+    lv_obj_set_size(standings_tab_list, SCREEN_WIDTH, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_height(standings_tab_list, 390, 0);
+    lv_obj_set_layout(standings_tab_list, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(standings_tab_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_align(standings_tab_list, LV_ALIGN_TOP_MID, 0, 34);
+    lv_obj_add_flag(standings_tab_list, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Populate with driver standings by default
+    populate_full_driver_standings(standings_tab_list);
+
+    Serial.println("[UI] Creating or Reloading Standings Tab UI -- DONE!");
+}
+
 // Runs once
 lv_obj_t * create_main_tabview(lv_obj_t * screen) {
     lv_obj_t * tabview;
@@ -1472,15 +1641,12 @@ lv_obj_t * create_main_tabview(lv_obj_t * screen) {
     lv_obj_remove_flag(content, LV_OBJ_FLAG_SCROLLABLE);
 
     tabs.race = lv_tabview_add_tab(tabview, F1_SYMBOL_CHEQUERED_FLAG);
-    tabs.news = lv_tabview_add_tab(tabview, F1_SYMBOL_RANKING);
-    tabs.settings = lv_tabview_add_tab(tabview, F1_SYMBOL_BARS);
+    tabs.standings = lv_tabview_add_tab(tabview, F1_SYMBOL_RANKING);
+    tabs.news = lv_tabview_add_tab(tabview, F1_SYMBOL_BARS);
+    tabs.settings = lv_tabview_add_tab(tabview, F1_SYMBOL_WRENCH);
 
     lv_obj_set_style_pad_all(tabs.race, 0, 0);
-    //lv_obj_set_style_pad_all(tabs.news, 0, 0);
-    /*lv_obj_set_style_bg_opa(tabs.news, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(tabs.news, lv_color_black(), 0);
-    lv_obj_set_style_bg_grad_color(tabs.news, lv_color_hex(HALO_COLOR_RED), 0);
-    lv_obj_set_style_bg_grad_dir(tabs.news, LV_GRAD_DIR_VER, 0);*/
+    lv_obj_set_style_pad_all(tabs.standings, 0, 0);
 
     int tab_count = lv_tabview_get_tab_count(tabview);
     for(int i = 0; i < tab_count; i++) {
@@ -1540,6 +1706,7 @@ void create_ui_skeleton() {
   home_tabs = create_main_tabview(screen.home);
 
   create_or_reload_race_ui();
+  create_or_reload_standings_tab_ui();
   create_or_reload_settings_ui();
 
   lv_screen_load(screen.wifi);
@@ -1549,4 +1716,5 @@ void create_ui_skeleton() {
 // Runs once after WiFi connection is established
 void post_wifi_ui_creation() {
   create_or_reload_race_sessions();
+  create_or_reload_standings_tab_ui();
 }
