@@ -26,9 +26,9 @@ const int DRIVERS_NUMBER = 22;
 #define SCREEN_HEIGHT 480
 
 #ifdef TOUCH_CAPACITIVE
-const String fw_version = "1.2.1";
+const String fw_version = "1.2.2-beta";
 #else
-const String fw_version = "1.2.1-R";
+const String fw_version = "1.2.2-R-beta";
 #endif
 
 
@@ -209,11 +209,18 @@ lv_obj_t * home_tabs;
 
 struct TabsStruct {
   lv_obj_t * race;
+  lv_obj_t * standings;
   lv_obj_t * news;
   lv_obj_t * settings;
 };
 
 TabsStruct tabs;
+
+// Standings tab state
+lv_obj_t * standings_tab_list = nullptr;
+bool standings_tab_showing_drivers = true;
+lv_obj_t * standings_tab_btn_drivers = nullptr;
+lv_obj_t * standings_tab_btn_constructors = nullptr;
 
 // TRANSLATIONS
 #include "localized_strings.h"
