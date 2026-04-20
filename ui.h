@@ -879,6 +879,88 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
     }, LV_EVENT_CLICKED, nullptr);
 }
 
+void save_session_results(const String &sessionName, SessionResults src[]) {
+    if (session_results_race_name != next_race.raceName) {
+        for (int i = 0; i < 10; i++) session_results_store[i].available = false;
+        session_results_race_name = next_race.raceName;
+    }
+    for (int i = 0; i < next_race.sessionCount; i++) {
+        if (next_race.sessions[i].name == sessionName) {
+            session_results_store[i].available = true;
+            session_results_store[i].isQualifying =
+                (sessionName == "Qualifying" || sessionName == "Sprint Qualifying");
+            for (int j = 0; j < DRIVERS_NUMBER; j++)
+                session_results_store[i].drivers[j] = src[j];
+            return;
+        }
+    }
+}
+
+static lv_obj_t *session_results_modal = nullptr;
+
+static void session_modal_close_cb(lv_event_t *e) {
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target_obj(e);
+    lv_msgbox_close(lv_obj_get_parent(lv_obj_get_parent(btn)));
+    session_results_modal = nullptr;
+}
+
+void show_session_results_modal(int session_idx) {
+    if (session_results_modal != nullptr) {
+        lv_msgbox_close(session_results_modal);
+        session_results_modal = nullptr;
+    }
+    if (session_idx < 0 || session_idx >= 10) return;
+    SavedSessionResults &stored = session_results_store[session_idx];
+    if (!stored.available) return;
+
+    session_results_modal = lv_msgbox_create(NULL);
+    lv_msgbox_add_title(session_results_modal, next_race.sessions[session_idx].name.c_str());
+
+    lv_obj_t *close_btn = lv_msgbox_add_footer_button(session_results_modal, localized_text->close);
+    lv_obj_add_event_cb(close_btn, session_modal_close_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *content = lv_msgbox_get_content(session_results_modal);
+    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+
+    for (int i = 0; i < DRIVERS_NUMBER; i++) {
+        if (stored.drivers[i].position.isEmpty() || stored.drivers[i].driver_number.isEmpty()) continue;
+        DriverStanding *driver = getDriverInfoByNumber(stored.drivers[i].driver_number);
+        if (!driver) continue;
+
+        char initial = driver->name.length() > 0 ? driver->name.charAt(0) : '?';
+        String name = String(initial) + ". " + driver->surname + " #" + stored.drivers[i].driver_number;
+        String gap;
+
+        if (stored.drivers[i].dnf) {
+            gap = "DNF";
+        } else if (stored.drivers[i].dns) {
+            gap = "DNS";
+        } else if (stored.isQualifying) {
+            if (i == 0) {
+                gap = formatLapTime(stored.drivers[i].quali[2]);
+            } else if (i < 10) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "+%.3f", stored.drivers[i].gap_to_leader_quali[2]);
+                gap = buf;
+            } else {
+                gap = "---";
+            }
+        } else {
+            if (i == 0) {
+                gap = formatLapTime(stored.drivers[i].duration);
+            } else {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "+%.3f", stored.drivers[i].gap_to_leader);
+                gap = buf;
+            }
+        }
+
+        create_standings_row(content, stored.drivers[i].position, name, "", gap, driver->constructorId);
+    }
+
+    lv_obj_center(session_results_modal);
+}
+
 // THE BIG ONE
 // @TODO - make nice graphics for Qualy and race results
 // @TODO - make results/standings not scrollable
@@ -1013,6 +1095,19 @@ void create_or_reload_race_sessions(bool force_reload) {
             : getWeatherColor(session_weather[i].wmo_code);
         lv_obj_set_style_text_color(w_lbl, badge_color, LV_PART_MAIN);
     }
+
+    // Tap row to open saved results modal for this session
+    lv_obj_add_event_cb(session_row, [](lv_event_t *e) {
+        int idx = (int)(intptr_t)lv_event_get_user_data(e);
+        if (idx >= 0 && idx < 10 && session_results_store[idx].available)
+            show_session_results_modal(idx);
+    }, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+
+    // Visual pressed-state feedback when results are available for this session
+    if (i < 10 && session_results_store[i].available) {
+        lv_obj_set_style_bg_opa(session_row, LV_OPA_40, LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(session_row, lv_color_white(), LV_PART_MAIN | LV_STATE_PRESSED);
+    }
   }
 
   // ── No Spoiler: reset lift when the active session has changed ──────────
@@ -1093,6 +1188,7 @@ void create_or_reload_race_sessions(bool force_reload) {
         if (last_results != current_results) return;
       } else {
         last_results = current_results;
+        save_session_results(current_results, results);
       }
 
       check_delay = 1800000;
@@ -1136,6 +1232,7 @@ void create_or_reload_race_sessions(bool force_reload) {
     if (last_results != current_results) return;
   } else {
     last_results = current_results;
+    save_session_results(current_results, results);
   }
 
   if (last_session.name == "Sprint Qualifying" || last_session.name == "Sprint Race" || last_session.name == "Qualifying" || last_session.name == "Race") {
