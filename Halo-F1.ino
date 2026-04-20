@@ -166,6 +166,15 @@ SessionResults results[DRIVERS_NUMBER];
 String current_results, last_results;
 bool results_checked_once = false, results_loaded_once = false, standings_loaded_once = false, got_new_results = false;
 
+struct SavedSessionResults {
+    bool available = false;
+    bool isQualifying = false;
+    SessionResults drivers[DRIVERS_NUMBER];
+};
+
+SavedSessionResults session_results_store[10]; // indexed by next_race.sessions[]
+String session_results_race_name = "";
+
 unsigned long long last_checked_session_results = 0;
 unsigned int check_delay = 0;
 
