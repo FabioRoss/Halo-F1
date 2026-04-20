@@ -391,10 +391,10 @@ const LanguageStrings language_strings_de PROGMEM = {
   "Anzeige",
   "Zeit",
   "Zeitzonen-Override Aktivieren",
-  LV_SYMBOL_CHARGE " Brauchen Sie Hilfe?",
-  LV_SYMBOL_CHARGE " Wir haben Sie abgedeckt!",
-  "Scannen Sie, um unserem Discord-Server beizutreten und Unterstützung zu erhalten!",
-  LV_SYMBOL_CHARGE " Brauchen Sie Hilfe? Wir haben Sie abgedeckt! Scannen Sie, um unserem Discord-Server beizutreten und Unterstützung zu erhalten!",
+  LV_SYMBOL_CHARGE "Brauchst du Hilfe? Klicke hier!",
+  LV_SYMBOL_CHARGE "Wir sind für dich da!",
+  "Scanne den Code, um unserem Discord-Server beizutreten und Unterstützung zu erhalten.",
+  LV_SYMBOL_CHARGE "Brauchst du Hilfe? Klicke hier! Wir sind für dich da! Scanne den Code, um unserem Discord-Server beizutreten und Unterstützung zu erhalten.",
 };
 
 const LanguageStrings language_strings_pt PROGMEM = {
