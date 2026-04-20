@@ -837,6 +837,16 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
 
     lv_obj_clean(container);
 
+    // Disable tap zones so they don't block the spoiler button below them
+    if (standings_left_tap)  lv_obj_clear_flag(standings_left_tap,  LV_OBJ_FLAG_CLICKABLE);
+    if (standings_right_tap) lv_obj_clear_flag(standings_right_tap, LV_OBJ_FLAG_CLICKABLE);
+
+    // Stop and hide the progress bar while the spoiler overlay is active
+    if (standings_progress_bar) {
+        lv_anim_del(standings_progress_bar, nullptr);
+        lv_obj_add_flag(standings_progress_bar, LV_OBJ_FLAG_HIDDEN);
+    }
+
     // Full-width centring wrapper
     lv_obj_t *wrapper = lv_obj_create(container);
     lv_obj_remove_style_all(wrapper);
@@ -893,6 +903,10 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
                     animate_results((lv_obj_t *)lv_timer_get_user_data(t));
                 }, 15000, standings_container);
             }
+            // Re-enable tap zones and restore progress bar now that real content is visible
+            if (standings_left_tap)  lv_obj_add_flag(standings_left_tap,  LV_OBJ_FLAG_CLICKABLE);
+            if (standings_right_tap) lv_obj_add_flag(standings_right_tap, LV_OBJ_FLAG_CLICKABLE);
+            if (standings_progress_bar) lv_obj_clear_flag(standings_progress_bar, LV_OBJ_FLAG_HIDDEN);
             restart_progress_bar();
         }, nullptr);
     }, LV_EVENT_CLICKED, nullptr);
@@ -1330,7 +1344,9 @@ void create_or_reload_race_ui() {
   lv_anim_del(&style_fade, NULL); //was standings_container
 
   lv_obj_clean(tabs.race);
-  standings_progress_bar = nullptr; // invalidated by clean above
+  standings_progress_bar = nullptr; // all three invalidated by clean above
+  standings_left_tap     = nullptr;
+  standings_right_tap    = nullptr;
 
   //----------//
   //   DATE   //
@@ -1405,29 +1421,30 @@ void create_or_reload_race_ui() {
   lv_obj_align(standings_container, LV_ALIGN_TOP_MID, - SCREEN_WIDTH * 0.025, 295);
 
   // ── Left tap zone: tap left half of standings area to go to previous page ─
-  lv_obj_t *left_tap = lv_obj_create(tabs.race);
-  lv_obj_remove_style_all(left_tap);
-  lv_obj_remove_flag(left_tap, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_size(left_tap, SCREEN_WIDTH / 2, 130);
-  lv_obj_set_pos(left_tap, 0, 295);
-  lv_obj_set_style_bg_opa(left_tap, LV_OPA_TRANSP, 0);
-  lv_obj_add_event_cb(left_tap, [](lv_event_t *) { nav_standings_page(-1); }, LV_EVENT_CLICKED, nullptr);
+  standings_left_tap = lv_obj_create(tabs.race);
+  lv_obj_remove_style_all(standings_left_tap);
+  lv_obj_remove_flag(standings_left_tap, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(standings_left_tap, SCREEN_WIDTH / 2, 130);
+  lv_obj_set_pos(standings_left_tap, 0, 295);
+  lv_obj_set_style_bg_opa(standings_left_tap, LV_OPA_TRANSP, 0);
+  lv_obj_add_event_cb(standings_left_tap, [](lv_event_t *) { nav_standings_page(-1); }, LV_EVENT_CLICKED, nullptr);
 
   // ── Right tap zone: tap right half of standings area to go to next page ───
-  lv_obj_t *right_tap = lv_obj_create(tabs.race);
-  lv_obj_remove_style_all(right_tap);
-  lv_obj_remove_flag(right_tap, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_size(right_tap, SCREEN_WIDTH / 2, 130);
-  lv_obj_set_pos(right_tap, SCREEN_WIDTH / 2, 295);
-  lv_obj_set_style_bg_opa(right_tap, LV_OPA_TRANSP, 0);
-  lv_obj_add_event_cb(right_tap, [](lv_event_t *) { nav_standings_page(1); }, LV_EVENT_CLICKED, nullptr);
+  standings_right_tap = lv_obj_create(tabs.race);
+  lv_obj_remove_style_all(standings_right_tap);
+  lv_obj_remove_flag(standings_right_tap, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(standings_right_tap, SCREEN_WIDTH / 2, 130);
+  lv_obj_set_pos(standings_right_tap, SCREEN_WIDTH / 2, 295);
+  lv_obj_set_style_bg_opa(standings_right_tap, LV_OPA_TRANSP, 0);
+  lv_obj_add_event_cb(standings_right_tap, [](lv_event_t *) { nav_standings_page(1); }, LV_EVENT_CLICKED, nullptr);
 
-  // ── Progress bar: grows left→right over 15 s to show time until next page ─
+  // ── Progress bar: at the top of the list, grows left→right over 15 s ─────
   standings_progress_bar = lv_obj_create(tabs.race);
   lv_obj_remove_style_all(standings_progress_bar);
   lv_obj_remove_flag(standings_progress_bar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(standings_progress_bar, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_size(standings_progress_bar, 0, 3);
-  lv_obj_set_pos(standings_progress_bar, 0, 415);
+  lv_obj_set_pos(standings_progress_bar, 0, 293);
   lv_obj_set_style_bg_opa(standings_progress_bar, LV_OPA_COVER, 0);
   lv_obj_set_style_bg_color(standings_progress_bar, lv_color_hex(HALO_COLOR_RED), 0);
   lv_obj_set_style_radius(standings_progress_bar, 0, 0);

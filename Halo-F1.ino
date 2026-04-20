@@ -201,6 +201,8 @@ const int TOTAL_DRIVERS = 22; // adjust if needed
 int    standings_manual_offset   = -1;    // -1 = auto-advance; >=0 = jump to this page
 bool   standings_showing_results = false; // true = session results mode, false = championship standings
 lv_obj_t *standings_progress_bar = nullptr;
+lv_obj_t *standings_left_tap     = nullptr;
+lv_obj_t *standings_right_tap    = nullptr;
 
 struct ScreenStruct {
   lv_obj_t * wifi;
