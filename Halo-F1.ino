@@ -198,6 +198,10 @@ static int standings_offset = 0;
 const int STANDINGS_PAGE_SIZE = 5;
 const int TOTAL_DRIVERS = 22; // adjust if needed
 
+int    standings_manual_offset   = -1;    // -1 = auto-advance; >=0 = jump to this page
+bool   standings_showing_results = false; // true = session results mode, false = championship standings
+lv_obj_t *standings_progress_bar = nullptr;
+
 struct ScreenStruct {
   lv_obj_t * wifi;
   lv_obj_t * home;
