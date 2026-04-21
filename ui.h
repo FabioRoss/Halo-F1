@@ -147,6 +147,18 @@ static void timezone_override_switch_handler(lv_event_t * e) {
     saveSettings();
 }
 
+static void news_tab_switch_handler(lv_event_t * e) {
+    lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
+
+    if (lv_obj_has_state(sw, LV_STATE_CHECKED)) {
+        newsAutoTabActive = true;
+    } else {
+        newsAutoTabActive = false;
+    }
+
+    //saveSettings();
+}
+
 static void night_mode_switch_handler(lv_event_t * e) {
     lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
 
@@ -1558,7 +1570,10 @@ void create_or_reload_news_ui(lv_timer_t *timer) {
     if (notifyNewArticle) {
         Serial.println("[UI] Article Link is new, running notification routine for new article fetched.");
         playNotificationSound();
-        //lv_tabview_set_active(home_tabs, 1, LV_ANIM_ON); // switch to article tab -- place under a bool switch in settings
+
+        if (newsAutoTabActive)
+            lv_tabview_set_active(home_tabs, 2, LV_ANIM_ON); // switch to article tab -- place under a bool switch in settings
+        
     }
 }
 
@@ -1595,6 +1610,12 @@ void create_or_reload_settings_ui() {
   // No Spoiler Mode
   no_spoiler_switch = create_switch(cont, LV_SYMBOL_WARNING, localized_text->no_spoiler_mode, noSpoilerModeActive);
   lv_obj_add_event_cb(no_spoiler_switch, no_spoiler_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // -- News Settings --
+  create_settings_divider(cont, "News");
+  // Switch tab to news when new article is fetched
+  news_change_tab_switch = create_switch(cont, LV_SYMBOL_BELL, "Switch Tab on New Article", newsAutoTabActive);
+  lv_obj_add_event_cb(news_change_tab_switch, news_change_tab_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
 
   // -- Timezone Settings --
   create_settings_divider(cont, localized_text->time_settings);
