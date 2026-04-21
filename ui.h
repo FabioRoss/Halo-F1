@@ -1456,7 +1456,7 @@ void create_or_reload_race_ui() {
   lv_obj_remove_flag(standings_progress_bar, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_clear_flag(standings_progress_bar, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_size(standings_progress_bar, 0, 3);
-  lv_obj_set_pos(standings_progress_bar, 0, 293);
+  lv_obj_set_pos(standings_progress_bar, 0, 270);
   lv_obj_set_style_bg_opa(standings_progress_bar, LV_OPA_COVER, 0);
   lv_obj_set_style_bg_color(standings_progress_bar, lv_color_hex(HALO_COLOR_RED), 0);
   lv_obj_set_style_radius(standings_progress_bar, 0, 0);
