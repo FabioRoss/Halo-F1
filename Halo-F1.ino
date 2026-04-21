@@ -186,7 +186,7 @@ lv_obj_t * sessions_container, * standings_container;
 // Settings stuff
 lv_obj_t * language_selector; // localized_text defined in localized_strings.h
 lv_obj_t * no_spoiler_switch; bool noSpoilerModeActive = true;
-lv_obj_t * news_change_tab_switch; bool newsAutoTabActive = true;
+lv_obj_t * news_change_tab_switch; bool newsAutoTabActive = false;
 lv_obj_t * brightness_slider, *night_brightness_slider; uint8_t brightness = 255, night_brightness = 30;
 
 // No-Spoiler lift state (not a setting — temporary per-session override)
