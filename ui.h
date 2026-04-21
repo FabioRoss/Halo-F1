@@ -147,7 +147,7 @@ static void timezone_override_switch_handler(lv_event_t * e) {
     saveSettings();
 }
 
-static void news_tab_switch_handler(lv_event_t * e) {
+static void news_change_tab_switch_handler(lv_event_t * e) {
     lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
 
     if (lv_obj_has_state(sw, LV_STATE_CHECKED)) {
