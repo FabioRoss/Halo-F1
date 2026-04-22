@@ -186,6 +186,7 @@ lv_obj_t * sessions_container, * standings_container;
 // Settings stuff
 lv_obj_t * language_selector; // localized_text defined in localized_strings.h
 lv_obj_t * no_spoiler_switch; bool noSpoilerModeActive = true;
+lv_obj_t * news_change_tab_switch; bool newsAutoTabActive = false;
 lv_obj_t * brightness_slider, *night_brightness_slider; uint8_t brightness = 255, night_brightness = 30;
 
 // No-Spoiler lift state (not a setting — temporary per-session override)
@@ -197,6 +198,12 @@ bool   noSpoilerWasStandings      = false; // true = was hiding standings; false
 static int standings_offset = 0;
 const int STANDINGS_PAGE_SIZE = 5;
 const int TOTAL_DRIVERS = 22; // adjust if needed
+
+int    standings_manual_offset   = -1;    // -1 = auto-advance; >=0 = jump to this page
+bool   standings_showing_results = false; // true = session results mode, false = championship standings
+lv_obj_t *standings_progress_bar = nullptr;
+lv_obj_t *standings_left_tap     = nullptr;
+lv_obj_t *standings_right_tap    = nullptr;
 
 struct ScreenStruct {
   lv_obj_t * wifi;
@@ -279,13 +286,12 @@ void setup() {
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);  
   lv_indev_set_read_cb(indev, touch_read);
 
-  playNotificationSound();
-
   loadSettings(); //init preferences storage, check for saved settings and load them if present
-
+  
   if(isNightTime() && nightModeActive) { // Adjust brightness after loading settings.
     adjustBrightness(night_brightness);
   } else {
+    playNotificationSound();
     adjustBrightness(brightness);
   }
 

@@ -8,6 +8,8 @@ static void populate_results(lv_obj_t * container, int offset);
 bool getLatestNews(String &title, String &link, String &desc);
 void create_or_reload_news_ui(lv_timer_t *timer);
 void create_or_reload_standings_tab_ui();
+void restart_progress_bar();
+void nav_standings_page(int direction);
 
 // -- STYLES -- //
 
@@ -143,6 +145,18 @@ static void timezone_override_switch_handler(lv_event_t * e) {
     // If activating: rollers already reflect current UTCoffset (set during creation),
     // so we just stop future ipapi calls from overwriting.
     saveSettings();
+}
+
+static void news_change_tab_switch_handler(lv_event_t * e) {
+    lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
+
+    if (lv_obj_has_state(sw, LV_STATE_CHECKED)) {
+        newsAutoTabActive = true;
+    } else {
+        newsAutoTabActive = false;
+    }
+
+    //saveSettings();
 }
 
 static void night_mode_switch_handler(lv_event_t * e) {
@@ -296,6 +310,8 @@ lv_obj_t* create_standings_row(lv_obj_t *parent,
 }
 
 void animate_standings(lv_obj_t * container) {
+    restart_progress_bar();
+
     if (!style_fade_inited) {
         lv_style_init(&style_fade);
         lv_style_set_opa(&style_fade, LV_OPA_COVER);  // start fully visible
@@ -331,9 +347,14 @@ void animate_standings(lv_obj_t * container) {
 
         //Serial.println("Container cleaned, populating");
 
-        // Advance offset
-        standings_offset += STANDINGS_PAGE_SIZE;
-        if (standings_offset >= TOTAL_DRIVERS) standings_offset = 0;
+        // Advance offset (or jump to manually requested page)
+        if (standings_manual_offset >= 0) {
+            standings_offset = standings_manual_offset;
+            standings_manual_offset = -1;
+        } else {
+            standings_offset += STANDINGS_PAGE_SIZE;
+            if (standings_offset >= TOTAL_DRIVERS) standings_offset = 0;
+        }
 
         // Repopulate
         populate_standings(cont, standings_offset);
@@ -384,6 +405,8 @@ static void populate_standings(lv_obj_t * container, int offset) {
 }
 
 void animate_results(lv_obj_t * container) {
+    restart_progress_bar();
+
     if (!style_fade_inited) {
         lv_style_init(&style_fade);
         lv_style_set_opa(&style_fade, LV_OPA_COVER);  // start fully visible
@@ -419,9 +442,14 @@ void animate_results(lv_obj_t * container) {
 
         //Serial.println("Standings container cleaned, populating");
 
-        // Advance offset
-        standings_offset += STANDINGS_PAGE_SIZE;
-        if (standings_offset >= TOTAL_DRIVERS) standings_offset = 0;
+        // Advance offset (or jump to manually requested page)
+        if (standings_manual_offset >= 0) {
+            standings_offset = standings_manual_offset;
+            standings_manual_offset = -1;
+        } else {
+            standings_offset += STANDINGS_PAGE_SIZE;
+            if (standings_offset >= TOTAL_DRIVERS) standings_offset = 0;
+        }
 
         // Repopulate
         populate_results(cont, standings_offset);
@@ -821,6 +849,16 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
 
     lv_obj_clean(container);
 
+    // Disable tap zones so they don't block the spoiler button below them
+    if (standings_left_tap)  lv_obj_clear_flag(standings_left_tap,  LV_OBJ_FLAG_CLICKABLE);
+    if (standings_right_tap) lv_obj_clear_flag(standings_right_tap, LV_OBJ_FLAG_CLICKABLE);
+
+    // Stop and hide the progress bar while the spoiler overlay is active
+    if (standings_progress_bar) {
+        lv_anim_del(standings_progress_bar, nullptr);
+        lv_obj_add_flag(standings_progress_bar, LV_OBJ_FLAG_HIDDEN);
+    }
+
     // Full-width centring wrapper
     lv_obj_t *wrapper = lv_obj_create(container);
     lv_obj_remove_style_all(wrapper);
@@ -865,16 +903,23 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
             lv_obj_clean(standings_container);
 
             if (noSpoilerWasStandings) {
+                standings_showing_results = false;
                 populate_standings(standings_container, 0);
                 standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
                     animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
                 }, 15000, standings_container);
             } else {
+                standings_showing_results = true;
                 populate_results(standings_container, 0);
                 standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
                     animate_results((lv_obj_t *)lv_timer_get_user_data(t));
                 }, 15000, standings_container);
             }
+            // Re-enable tap zones and restore progress bar now that real content is visible
+            if (standings_left_tap)  lv_obj_add_flag(standings_left_tap,  LV_OBJ_FLAG_CLICKABLE);
+            if (standings_right_tap) lv_obj_add_flag(standings_right_tap, LV_OBJ_FLAG_CLICKABLE);
+            if (standings_progress_bar) lv_obj_clear_flag(standings_progress_bar, LV_OBJ_FLAG_HIDDEN);
+            restart_progress_bar();
         }, nullptr);
     }, LV_EVENT_CLICKED, nullptr);
 }
@@ -1137,12 +1182,14 @@ void create_or_reload_race_sessions(bool force_reload) {
       if (noSpoilerModeActive && !noSpoilerLifted) {
           show_spoiler_button(standings_container, true);  // true = hiding standings
       } else {
+          standings_showing_results = false;
           populate_standings(standings_container, 0);
 
           standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
               //Serial.println("Inside Standings Animation Timer");
               animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
           }, 15000, standings_container);
+          restart_progress_bar();
       }
 
       check_delay = 30 * 60000;
@@ -1198,11 +1245,13 @@ void create_or_reload_race_sessions(bool force_reload) {
       if (noSpoilerModeActive && !noSpoilerLifted) {
           show_spoiler_button(standings_container, false);  // false = hiding results
       } else {
+          standings_showing_results = true;
           populate_results(standings_container, 0);
 
           standings_ui_timer = lv_timer_create([](lv_timer_t * t){
               animate_results((lv_obj_t *)lv_timer_get_user_data(t));
           }, 15000, standings_container);
+          restart_progress_bar();
       }
 
       Serial.println("[UI] Results for Free Practice Rendered");
@@ -1248,14 +1297,55 @@ void create_or_reload_race_sessions(bool force_reload) {
     if (noSpoilerModeActive && !noSpoilerLifted) {
         show_spoiler_button(standings_container, false);  // false = hiding results
     } else {
+        standings_showing_results = true;
         populate_results(standings_container, 0);
 
         standings_ui_timer = lv_timer_create([](lv_timer_t * t){
             animate_results((lv_obj_t *)lv_timer_get_user_data(t));
         }, 15000, standings_container);
+        restart_progress_bar();
     }
     return;
   }
+}
+
+void restart_progress_bar() {
+    if (!standings_progress_bar) return;
+    lv_anim_del(standings_progress_bar, nullptr);
+    lv_obj_set_width(standings_progress_bar, 0);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, standings_progress_bar);
+    lv_anim_set_exec_cb(&a, [](void *var, int32_t v) {
+        lv_obj_set_width((lv_obj_t *)var, (lv_coord_t)v);
+    });
+    lv_anim_set_values(&a, 0, SCREEN_WIDTH);
+    lv_anim_set_duration(&a, 15000);
+    lv_anim_set_path_cb(&a, lv_anim_path_linear);
+    lv_anim_start(&a);
+}
+
+void nav_standings_page(int direction) {
+    if (!standings_ui_timer) return;
+    if (direction < 0) {
+        standings_manual_offset = standings_offset - STANDINGS_PAGE_SIZE;
+        if (standings_manual_offset < 0)
+            standings_manual_offset = ((TOTAL_DRIVERS - 1) / STANDINGS_PAGE_SIZE) * STANDINGS_PAGE_SIZE;
+    }
+    lv_timer_del(standings_ui_timer);
+    standings_ui_timer = nullptr;
+    if (standings_showing_results) {
+        animate_results(standings_container);
+        standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
+            animate_results((lv_obj_t *)lv_timer_get_user_data(t));
+        }, 15000, standings_container);
+    } else {
+        animate_standings(standings_container);
+        standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
+            animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
+        }, 15000, standings_container);
+    }
 }
 
 // Runs once or when language is changed
@@ -1266,6 +1356,9 @@ void create_or_reload_race_ui() {
   lv_anim_del(&style_fade, NULL); //was standings_container
 
   lv_obj_clean(tabs.race);
+  standings_progress_bar = nullptr; // all three invalidated by clean above
+  standings_left_tap     = nullptr;
+  standings_right_tap    = nullptr;
 
   //----------//
   //   DATE   //
@@ -1338,6 +1431,35 @@ void create_or_reload_race_ui() {
   lv_obj_set_style_width(standings_container, SCREEN_WIDTH, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_scroll_snap_y(standings_container, LV_SCROLL_SNAP_START);
   lv_obj_align(standings_container, LV_ALIGN_TOP_MID, - SCREEN_WIDTH * 0.025, 295);
+
+  // ── Left tap zone: tap left half of standings area to go to previous page ─
+  standings_left_tap = lv_obj_create(tabs.race);
+  lv_obj_remove_style_all(standings_left_tap);
+  lv_obj_remove_flag(standings_left_tap, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(standings_left_tap, SCREEN_WIDTH / 2, 130);
+  lv_obj_set_pos(standings_left_tap, 0, 295);
+  lv_obj_set_style_bg_opa(standings_left_tap, LV_OPA_TRANSP, 0);
+  lv_obj_add_event_cb(standings_left_tap, [](lv_event_t *) { nav_standings_page(-1); }, LV_EVENT_CLICKED, nullptr);
+
+  // ── Right tap zone: tap right half of standings area to go to next page ───
+  standings_right_tap = lv_obj_create(tabs.race);
+  lv_obj_remove_style_all(standings_right_tap);
+  lv_obj_remove_flag(standings_right_tap, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(standings_right_tap, SCREEN_WIDTH / 2, 130);
+  lv_obj_set_pos(standings_right_tap, SCREEN_WIDTH / 2, 295);
+  lv_obj_set_style_bg_opa(standings_right_tap, LV_OPA_TRANSP, 0);
+  lv_obj_add_event_cb(standings_right_tap, [](lv_event_t *) { nav_standings_page(1); }, LV_EVENT_CLICKED, nullptr);
+
+  // ── Progress bar: at the top of the list, grows left→right over 15 s ─────
+  standings_progress_bar = lv_obj_create(tabs.race);
+  lv_obj_remove_style_all(standings_progress_bar);
+  lv_obj_remove_flag(standings_progress_bar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(standings_progress_bar, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_size(standings_progress_bar, 0, 3);
+  lv_obj_set_pos(standings_progress_bar, 0, 266);
+  lv_obj_set_style_bg_opa(standings_progress_bar, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(standings_progress_bar, lv_color_hex(HALO_COLOR_RED), 0);
+  lv_obj_set_style_radius(standings_progress_bar, 0, 0);
 
   Serial.println("[UI] Creating or Reloading Race UI -- DONE!");
 }
@@ -1448,7 +1570,10 @@ void create_or_reload_news_ui(lv_timer_t *timer) {
     if (notifyNewArticle) {
         Serial.println("[UI] Article Link is new, running notification routine for new article fetched.");
         playNotificationSound();
-        //lv_tabview_set_active(home_tabs, 1, LV_ANIM_ON); // switch to article tab -- place under a bool switch in settings
+
+        if (newsAutoTabActive)
+            lv_tabview_set_active(home_tabs, 2, LV_ANIM_ON); // switch to article tab -- place under a bool switch in settings
+        
     }
 }
 
@@ -1485,6 +1610,12 @@ void create_or_reload_settings_ui() {
   // No Spoiler Mode
   no_spoiler_switch = create_switch(cont, LV_SYMBOL_WARNING, localized_text->no_spoiler_mode, noSpoilerModeActive);
   lv_obj_add_event_cb(no_spoiler_switch, no_spoiler_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // -- News Settings --
+  create_settings_divider(cont, "News");
+  // Switch tab to news when new article is fetched
+  news_change_tab_switch = create_switch(cont, LV_SYMBOL_BELL, "Switch Tab on New Article", newsAutoTabActive);
+  lv_obj_add_event_cb(news_change_tab_switch, news_change_tab_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
 
   // -- Timezone Settings --
   create_settings_divider(cont, localized_text->time_settings);
