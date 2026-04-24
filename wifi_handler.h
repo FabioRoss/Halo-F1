@@ -148,55 +148,6 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
   link = "";
   desc = "";
 
-  // Stream-based parsing to avoid loading the full feed in RAM.
-  // We only buffer the first <item> or <entry> block with a hard size cap.
-  WiFiClient *stream = http.getStreamPtr();
-  String firstItem = "";
-  const size_t MAX_FIRST_ITEM_BUFFER = 24 * 1024; // safety cap for ESP32 RAM
-  firstItem.reserve(MAX_FIRST_ITEM_BUFFER);
-
-  bool inItem = false;
-  const char *endTag = nullptr;
-  unsigned long lastDataAt = millis();
-
-  while (stream->connected() || stream->available()) {
-    if (!stream->available()) {
-      // Don't block forever on stalled connections.
-      if (millis() - lastDataAt > 5000) break;
-      delay(1);
-      continue;
-    }
-
-    String line = stream->readStringUntil('\n');
-    lastDataAt = millis();
-
-    if (!inItem) {
-      int itemPos = line.indexOf("<item");
-      int entryPos = line.indexOf("<entry");
-      if (itemPos >= 0 || entryPos >= 0) {
-        inItem = true;
-        endTag = (entryPos >= 0 && (itemPos < 0 || entryPos < itemPos)) ? "</entry>" : "</item>";
-      }
-    }
-
-    if (!inItem) continue;
-
-    if (firstItem.length() + line.length() + 1 > MAX_FIRST_ITEM_BUFFER) {
-      Serial.println("[News] First item exceeded buffer cap, aborting parse.");
-      http.end();
-      return false;
-    }
-
-    firstItem += line;
-    firstItem += '\n';
-
-    if (endTag && firstItem.indexOf(endTag) >= 0) break;
-  }
-
-  http.end();
-
-  if (!inItem || firstItem.length() == 0) return false;
-
   auto getTagContent = [](const String &src, const String &tag) -> String {
     String open = "<" + tag + ">";
     String close = "</" + tag + ">";
@@ -216,9 +167,91 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
     return out;
   };
 
+  // Stream-based parsing to avoid loading the full feed in RAM.
+  // We buffer only part of the first <item>/<entry>, and exit early when
+  // we have enough data to render the card.
+  WiFiClient *stream = http.getStreamPtr();
+  String firstItem = "";
+  const size_t MAX_FIRST_ITEM_BUFFER = 24 * 1024; // safety cap for ESP32 RAM
+  firstItem.reserve(MAX_FIRST_ITEM_BUFFER);
+
+  bool inItem = false;
+  const char *endTag = nullptr;
+  unsigned long lastDataAt = millis();
+
+  const size_t CHUNK_SIZE = 256;
+  char chunk[CHUNK_SIZE + 1];
+
+  while (stream->connected() || stream->available()) {
+    if (!stream->available()) {
+      // Don't block forever on stalled connections.
+      if (millis() - lastDataAt > 5000) break;
+      delay(1);
+      continue;
+    }
+
+    size_t toRead = stream->available();
+    if (toRead > CHUNK_SIZE) toRead = CHUNK_SIZE;
+    int got = stream->readBytes(chunk, toRead);
+    if (got <= 0) continue;
+    chunk[got] = '\0';
+    lastDataAt = millis();
+
+    String part = String(chunk);
+
+    if (!inItem) {
+      int itemPos = part.indexOf("<item");
+      int entryPos = part.indexOf("<entry");
+      if (itemPos >= 0 || entryPos >= 0) {
+        inItem = true;
+        endTag = (entryPos >= 0 && (itemPos < 0 || entryPos < itemPos)) ? "</entry>" : "</item>";
+      } else {
+        continue;
+      }
+    }
+
+    if (firstItem.length() + (size_t)got > MAX_FIRST_ITEM_BUFFER) {
+      Serial.println("[News] First item exceeded buffer cap, aborting parse.");
+      http.end();
+      return false;
+    }
+
+    firstItem += part;
+
+    // Early extraction makes parsing robust even when feed markup is large.
+    if (title.length() == 0) title = getTagContent(firstItem, "title");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "description");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "summary");
+    if (link.length() == 0) link = getTagContent(firstItem, "link");
+
+    // Atom feeds often use <link href="..."/> instead of <link>...</link>
+    if (link.length() == 0) {
+      int linkTagStart = firstItem.indexOf("<link");
+      if (linkTagStart >= 0) {
+        int linkTagEnd = firstItem.indexOf(">", linkTagStart);
+        if (linkTagEnd > linkTagStart) {
+          String linkTag = firstItem.substring(linkTagStart, linkTagEnd + 1);
+          int hrefStart = linkTag.indexOf("href=\"");
+          if (hrefStart >= 0) {
+            hrefStart += 6;
+            int hrefEnd = linkTag.indexOf("\"", hrefStart);
+            if (hrefEnd > hrefStart) link = linkTag.substring(hrefStart, hrefEnd);
+          }
+        }
+      }
+    }
+
+    if (link.length() > 0 && (title.length() > 0 || desc.length() > 0)) break;
+    if (endTag && firstItem.indexOf(endTag) >= 0) break;
+  }
+
+  http.end();
+
+  if (!inItem || firstItem.length() == 0) return false;
+
   title = getTagContent(firstItem, "title");
-  link = getTagContent(firstItem, "link");
-  desc = getTagContent(firstItem, "description");
+  if (link.length() == 0) link = getTagContent(firstItem, "link");
+  if (desc.length() == 0) desc = getTagContent(firstItem, "description");
 
   // Atom feeds often use <link href="..."/> instead of <link>...</link>
   if (link.length() == 0) {
