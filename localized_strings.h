@@ -54,6 +54,8 @@ typedef struct {
   const char* help_dialog_message;
   const char* wifi_help_qr_caption;
   const char* news_unavailable_for_selected_feed;
+  const char* news_feed_label;
+  const char* news_pulse_effect_label;
 } LanguageStrings;
 
 const LanguageStrings language_strings_en PROGMEM = {
@@ -112,6 +114,8 @@ const LanguageStrings language_strings_en PROGMEM = {
   "Scan to join our Discord server and get support!",
   LV_SYMBOL_CHARGE " Need Help? We got you! Scan to join our Discord server and get support!",
   "News unavailable for selected feed",
+  "News Feed",
+  "News Pulse Effect",
 };
 
 const LanguageStrings language_strings_it PROGMEM = {
@@ -170,6 +174,8 @@ const LanguageStrings language_strings_it PROGMEM = {
   "Scansiona per unirti al nostro server Discord e ricevere supporto!",
   LV_SYMBOL_CHARGE " Serve aiuto? Ci pensiamo noi! Scansiona per unirti al nostro server Discord e ricevere supporto!",
   "Notizie non disponibili per il feed selezionato",
+  "Feed Notizie",
+  "Effetto Pulsazione Notizie",
 };
 
 const LanguageStrings language_strings_es PROGMEM = {
@@ -228,6 +234,8 @@ const LanguageStrings language_strings_es PROGMEM = {
   "Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
   LV_SYMBOL_CHARGE " ¿Necesitas ayuda? Te tenemos cubierto! Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
   "Noticias no disponibles para la fuente seleccionada",
+  "Fuente de Noticias",
+  "Efecto Pulso de Noticias",
 };
 
 const LanguageStrings language_strings_fr PROGMEM = {
@@ -286,6 +294,8 @@ const LanguageStrings language_strings_fr PROGMEM = {
   "Scannez pour rejoindre notre serveur Discord et obtenir de l'aide!",
   LV_SYMBOL_CHARGE " Besoin d'aide? On s'occupe de vous! Scannez pour rejoindre notre serveur Discord et obtenir de l'aide!",
   "Actualites indisponibles pour la source selectionnee",
+  "Source d'Actualites",
+  "Effet de Pulsation des Actualites",
 };
 
 const LanguageStrings language_strings_nl PROGMEM = {
@@ -344,6 +354,8 @@ const LanguageStrings language_strings_nl PROGMEM = {
   "Scan om lid te worden van onze Discord-server en ondersteuning te krijgen!",
   LV_SYMBOL_CHARGE " Heb je hulp nodig? We hebben je gedekt! Scan om lid te worden van onze Discord-server en ondersteuning te krijgen!",
   "Nieuws niet beschikbaar voor de geselecteerde bron",
+  "Nieuwsbron",
+  "Nieuws Pulse Effect",
 };
 
 const LanguageStrings language_strings_de PROGMEM = {
@@ -402,6 +414,8 @@ const LanguageStrings language_strings_de PROGMEM = {
   "Scanne den Code, um unserem Discord-Server beizutreten und Unterstützung zu erhalten.",
   LV_SYMBOL_CHARGE "Brauchst du Hilfe? Klicke hier! Wir sind für dich da! Scanne den Code, um unserem Discord-Server beizutreten und Unterstützung zu erhalten.",
   "Nachrichten fur die ausgewahlte Quelle nicht verfugbar",
+  "News-Feed",
+  "News-Puls Effekt",
 };
 
 const LanguageStrings language_strings_pt PROGMEM = {
@@ -460,6 +474,8 @@ const LanguageStrings language_strings_pt PROGMEM = {
   "Escaneie para entrar no nosso servidor Discord e obter suporte!",
   LV_SYMBOL_CHARGE " Precisa de ajuda? Nós te cobrimos! Escaneie para entrar no nosso servidor Discord e obter suporte!",
   "Noticias indisponiveis para a fonte selecionada",
+  "Fonte de Noticias",
+  "Efeito de Pulso de Noticias",
 };
 
 const LanguageStrings language_strings_no PROGMEM = {
@@ -518,6 +534,8 @@ const LanguageStrings language_strings_no PROGMEM = {
   "Skann for å bli med i vår Discord-server og få støtte!",
   LV_SYMBOL_CHARGE " Trenger du hjelp? Vi har deg dekket! Skann for å bli med i vår Discord-server og få støtte!",
   "Nyheter utilgjengelige for valgt kilde",
+  "Nyhetskilde",
+  "Nyheter Pulseffekt",
 };
 
 const LanguageStrings language_strings_pl PROGMEM = {
@@ -575,7 +593,9 @@ const LanguageStrings language_strings_pl PROGMEM = {
   LV_SYMBOL_CHARGE " Mamy Cie!",
   "Skanuj, aby dolaczyc do naszego serwera Discord i uzyskac wsparcie!",
   LV_SYMBOL_CHARGE " Potrzebujesz pomocy? Mamy Cie! Skanuj, aby dolaczyc do naszego serwera Discord i uzyskac wsparcie!",
-  "Wiadomosci niedostepne dla wybranego zrodla",
+  "Wiadomości niedostępne dla wybranego źródła",
+  "Zrodlo Wiadomosci",
+  "Efekt Pulsu Wiadomosci",
 };
 
 uint32_t get_team_color(String team) {
