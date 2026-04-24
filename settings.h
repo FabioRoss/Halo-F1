@@ -1,4 +1,4 @@
-#define SETTINGS_VERSION 2
+#define SETTINGS_VERSION 3
 
 struct SavedSettingsV1 {
     uint8_t  version;
@@ -15,6 +15,22 @@ struct SavedSettingsV1 {
     uint8_t  languageIndex;
 };
 
+struct SavedSettingsV2 {
+    uint8_t  version;
+    uint8_t  brightness;
+    uint8_t  night_brightness;
+    bool     nightModeActive;
+    uint8_t  nightStart_h;
+    uint8_t  nightStart_m;
+    uint8_t  nightStop_h;
+    uint8_t  nightStop_m;
+    bool     noSpoilerModeActive;
+    bool     timezoneOverrideActive;
+    int32_t  UTCoffsetHours;
+    uint8_t  languageIndex;
+    uint8_t  newsFeedIndex;
+};
+
 struct SavedSettings {
     uint8_t  version;
     uint8_t  brightness;
@@ -29,6 +45,7 @@ struct SavedSettings {
     int32_t  UTCoffsetHours;
     uint8_t  languageIndex;
     uint8_t  newsFeedIndex;
+    bool     newsPulseEnabled;
 };
 
 void saveSettings() {
@@ -49,6 +66,7 @@ void saveSettings() {
         if (languages[i].strings == localized_text) { s.languageIndex = i; break; }
     }
     s.newsFeedIndex        = selectedNewsFeed;
+    s.newsPulseEnabled     = newsPulseEnabled;
 
     Serial.println("[Preferences] Saving settings to flash...");
 
@@ -101,9 +119,40 @@ void loadSettings() {
 
         if (s.newsFeedIndex < NEWS_FEED_COUNT)
             selectedNewsFeed = s.newsFeedIndex;
+        newsPulseEnabled = s.newsPulseEnabled;
 
         Serial.println("[Preferences] Settings loaded from flash.");
         return;
+    }
+
+    if (len == sizeof(SavedSettingsV2)) {
+        SavedSettingsV2 legacyV2{};
+        if (preferences.begin("halo", true)) {
+            size_t legacyRead = preferences.getBytes("cfg", &legacyV2, sizeof(legacyV2));
+            preferences.end();
+            if (legacyRead == sizeof(legacyV2) && legacyV2.version == 2) {
+                brightness             = legacyV2.brightness;
+                night_brightness       = legacyV2.night_brightness;
+                nightModeActive        = legacyV2.nightModeActive;
+                nightModeTimes.start_hours   = legacyV2.nightStart_h;
+                nightModeTimes.start_minutes = legacyV2.nightStart_m;
+                nightModeTimes.stop_hours    = legacyV2.nightStop_h;
+                nightModeTimes.stop_minutes  = legacyV2.nightStop_m;
+                noSpoilerModeActive    = legacyV2.noSpoilerModeActive;
+                timezoneOverrideActive = legacyV2.timezoneOverrideActive;
+                UTCoffsetHours         = legacyV2.UTCoffsetHours;
+                UTCoffset              = (long)UTCoffsetHours * 3600;
+                newsPulseEnabled       = true;
+
+                if (legacyV2.languageIndex < languageCount)
+                    localized_text = languages[legacyV2.languageIndex].strings;
+                if (legacyV2.newsFeedIndex < NEWS_FEED_COUNT)
+                    selectedNewsFeed = legacyV2.newsFeedIndex;
+
+                Serial.println("[Preferences] Loaded legacy v2 settings from flash.");
+                return;
+            }
+        }
     }
 
     if (len == sizeof(SavedSettingsV1)) {
