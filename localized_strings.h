@@ -53,6 +53,7 @@ typedef struct {
   const char* help_dialog_title;
   const char* help_dialog_message;
   const char* wifi_help_qr_caption;
+  const char* news_unavailable_for_selected_feed;
 } LanguageStrings;
 
 const LanguageStrings language_strings_en PROGMEM = {
@@ -110,6 +111,7 @@ const LanguageStrings language_strings_en PROGMEM = {
   LV_SYMBOL_CHARGE " We got you!",
   "Scan to join our Discord server and get support!",
   LV_SYMBOL_CHARGE " Need Help? We got you! Scan to join our Discord server and get support!",
+  "News unavailable for selected feed",
 };
 
 const LanguageStrings language_strings_it PROGMEM = {
@@ -167,6 +169,7 @@ const LanguageStrings language_strings_it PROGMEM = {
   LV_SYMBOL_CHARGE " Ci pensiamo noi!",
   "Scansiona per unirti al nostro server Discord e ricevere supporto!",
   LV_SYMBOL_CHARGE " Serve aiuto? Ci pensiamo noi! Scansiona per unirti al nostro server Discord e ricevere supporto!",
+  "Notizie non disponibili per il feed selezionato",
 };
 
 const LanguageStrings language_strings_es PROGMEM = {
@@ -224,6 +227,7 @@ const LanguageStrings language_strings_es PROGMEM = {
   LV_SYMBOL_CHARGE " Te tenemos cubierto!",
   "Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
   LV_SYMBOL_CHARGE " ¿Necesitas ayuda? Te tenemos cubierto! Escanea para unirte a nuestro servidor de Discord y obtener soporte!",
+  "Noticias no disponibles para la fuente seleccionada",
 };
 
 const LanguageStrings language_strings_fr PROGMEM = {
@@ -281,6 +285,7 @@ const LanguageStrings language_strings_fr PROGMEM = {
   LV_SYMBOL_CHARGE " On s'occupe de vous!",
   "Scannez pour rejoindre notre serveur Discord et obtenir de l'aide!",
   LV_SYMBOL_CHARGE " Besoin d'aide? On s'occupe de vous! Scannez pour rejoindre notre serveur Discord et obtenir de l'aide!",
+  "Actualites indisponibles pour la source selectionnee",
 };
 
 const LanguageStrings language_strings_nl PROGMEM = {
@@ -338,6 +343,7 @@ const LanguageStrings language_strings_nl PROGMEM = {
   LV_SYMBOL_CHARGE " We hebben je gedekt!",
   "Scan om lid te worden van onze Discord-server en ondersteuning te krijgen!",
   LV_SYMBOL_CHARGE " Heb je hulp nodig? We hebben je gedekt! Scan om lid te worden van onze Discord-server en ondersteuning te krijgen!",
+  "Nieuws niet beschikbaar voor de geselecteerde bron",
 };
 
 const LanguageStrings language_strings_de PROGMEM = {
@@ -378,7 +384,7 @@ const LanguageStrings language_strings_de PROGMEM = {
   "TEAM-WERTUNG",
   "Scannen zum Lesen",
   "Scannen zum Öffnen",
-  "Language",
+  "Sprache",
   "Deutsch",
   "German",
   "Helligkeit",
@@ -395,6 +401,7 @@ const LanguageStrings language_strings_de PROGMEM = {
   LV_SYMBOL_CHARGE "Wir sind für dich da!",
   "Scanne den Code, um unserem Discord-Server beizutreten und Unterstützung zu erhalten.",
   LV_SYMBOL_CHARGE "Brauchst du Hilfe? Klicke hier! Wir sind für dich da! Scanne den Code, um unserem Discord-Server beizutreten und Unterstützung zu erhalten.",
+  "Nachrichten fur die ausgewahlte Quelle nicht verfugbar",
 };
 
 const LanguageStrings language_strings_pt PROGMEM = {
@@ -452,6 +459,7 @@ const LanguageStrings language_strings_pt PROGMEM = {
   LV_SYMBOL_CHARGE " Nós te cobrimos!",
   "Escaneie para entrar no nosso servidor Discord e obter suporte!",
   LV_SYMBOL_CHARGE " Precisa de ajuda? Nós te cobrimos! Escaneie para entrar no nosso servidor Discord e obter suporte!",
+  "Noticias indisponiveis para a fonte selecionada",
 };
 
 const LanguageStrings language_strings_no PROGMEM = {
@@ -509,6 +517,7 @@ const LanguageStrings language_strings_no PROGMEM = {
   LV_SYMBOL_CHARGE " Vi har deg dekket!",
   "Skann for å bli med i vår Discord-server og få støtte!",
   LV_SYMBOL_CHARGE " Trenger du hjelp? Vi har deg dekket! Skann for å bli med i vår Discord-server og få støtte!",
+  "Nyheter utilgjengelige for valgt kilde",
 };
 
 const LanguageStrings language_strings_pl PROGMEM = {
@@ -566,6 +575,7 @@ const LanguageStrings language_strings_pl PROGMEM = {
   LV_SYMBOL_CHARGE " Mamy Cie!",
   "Skanuj, aby dolaczyc do naszego serwera Discord i uzyskac wsparcie!",
   LV_SYMBOL_CHARGE " Potrzebujesz pomocy? Mamy Cie! Skanuj, aby dolaczyc do naszego serwera Discord i uzyskac wsparcie!",
+  "Wiadomosci niedostepne dla wybranego zrodla",
 };
 
 uint32_t get_team_color(String team) {

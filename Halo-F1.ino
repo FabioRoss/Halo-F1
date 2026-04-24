@@ -178,6 +178,20 @@ lv_obj_t * sessions_container, * standings_container;
 lv_obj_t * language_selector; // localized_text defined in localized_strings.h
 lv_obj_t * no_spoiler_switch; bool noSpoilerModeActive = true;
 lv_obj_t * brightness_slider, *night_brightness_slider; uint8_t brightness = 255, night_brightness = 30;
+lv_obj_t * news_feed_selector; uint8_t selectedNewsFeed = 0;
+lv_obj_t * news_pulse_switch; bool newsPulseEnabled = true;
+
+const uint8_t NEWS_FEED_COUNT = 3;
+const char * const newsFeedNames[NEWS_FEED_COUNT] = {
+  "The Race",
+  "Formula1.com",
+  "Motorsport-Total"
+};
+const char * const newsFeedUrls[NEWS_FEED_COUNT] = {
+  "https://www.the-race.com/category/formula-1/rss/",
+  "https://www.formula1.com/en/latest/all.xml",
+  "https://www.motorsport-total.com/rss/rss_formel-1.xml"
+};
 
 // No-Spoiler lift state (not a setting — temporary per-session override)
 bool   noSpoilerLifted            = false; // true after user presses "Show"
@@ -215,6 +229,8 @@ struct TabsStruct {
 };
 
 TabsStruct tabs;
+lv_obj_t * news_tab_button = nullptr;
+bool hasUnreadNews = false;
 
 // Standings tab state
 lv_obj_t * standings_tab_list = nullptr;

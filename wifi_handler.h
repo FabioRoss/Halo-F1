@@ -1,85 +1,158 @@
+// Decode common RSS HTML entities and normalize special characters so they render
+// consistently on embedded fonts that may not include all Unicode glyphs.
+static String normalizeNewsText(String text) {
+  // Basic HTML entities
+  text.replace("&amp;", "&");
+  text.replace("&lt;", "<");
+  text.replace("&gt;", ">");
+  text.replace("&quot;", "\"");
+  text.replace("&#39;", "'");
+  text.replace("&apos;", "'");
+  text.replace("&nbsp;", " ");
+
+  // German umlauts / sharp s from HTML entities
+  text.replace("&auml;", "ae");
+  text.replace("&ouml;", "oe");
+  text.replace("&uuml;", "ue");
+  text.replace("&Auml;", "Ae");
+  text.replace("&Ouml;", "Oe");
+  text.replace("&Uuml;", "Ue");
+  text.replace("&szlig;", "ss");
+
+  // Also handle numeric entities often used by feeds
+  text.replace("&#228;", "ae");
+  text.replace("&#246;", "oe");
+  text.replace("&#252;", "ue");
+  text.replace("&#196;", "Ae");
+  text.replace("&#214;", "Oe");
+  text.replace("&#220;", "Ue");
+  text.replace("&#223;", "ss");
+
+  // UTF-8 umlauts / sharp s
+  text.replace("\xC3\xA4", "ae");
+  text.replace("\xC3\xB6", "oe");
+  text.replace("\xC3\xBC", "ue");
+  text.replace("\xC3\x84", "Ae");
+  text.replace("\xC3\x96", "Oe");
+  text.replace("\xC3\x9C", "Ue");
+  text.replace("\xC3\x9F", "ss");
+
+  // Common mojibake fallback if UTF-8 was interpreted as latin1 somewhere upstream
+  text.replace("\xC3\x83\xC2\xA4", "ae");
+  text.replace("\xC3\x83\xC2\xB6", "oe");
+  text.replace("\xC3\x83\xC2\xBC", "ue");
+  text.replace("\xC3\x83\xE2\x80\x9E", "Ae");
+  text.replace("\xC3\x83\xE2\x80\x93", "Oe");
+  text.replace("\xC3\x83\xE2\x80\x9C", "Ue");
+  text.replace("\xC3\x83\xC5\xB8", "ss");
+
+  // Remove simple HTML tags that occasionally leak from feeds
+  while (true) {
+    int tagStart = text.indexOf("<");
+    if (tagStart < 0) break;
+    int tagEnd = text.indexOf(">", tagStart);
+    if (tagEnd < 0) break;
+    text.remove(tagStart, (tagEnd - tagStart) + 1);
+  }
+
+  // Normalize whitespace
+  text.replace("\r", " ");
+  text.replace("\n", " ");
+  while (text.indexOf("  ") >= 0) text.replace("  ", " ");
+  text.trim();
+
+  return text;
+}
+
 // Tries once to fetch the latest news
 bool fetchLatestNews(String &title, String &link, String &desc) {
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
-  http.begin(client, "https://www.the-race.com/category/formula-1/rss/");
+  uint8_t feedIndex = selectedNewsFeed < NEWS_FEED_COUNT ? selectedNewsFeed : 0;
+  http.begin(client, newsFeedUrls[feedIndex]);
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("[News] HTTP error: %d\n", httpCode);
+    Serial.printf("[News] HTTP error: %d (feed: %s)\n", httpCode, newsFeedNames[feedIndex]);
     http.end();
     return false;
   }
 
-  WiFiClient *stream = http.getStreamPtr();
+  String payload = http.getString();
 
-  String line;
-  bool inItem = false;
-  int lineNum = 0, itemLine = 0;
-  int itemPos = -1;
+  http.end();
 
   title = "";
   link = "";
   desc = "";
 
-  bool title_parsed = false, link_parsed = false, desc_parsed = false;
+  int itemStart = payload.indexOf("<item");
+  if (itemStart < 0) itemStart = payload.indexOf("<entry");
+  if (itemStart < 0) return false;
 
-  while (stream->connected() && stream->available()) {
-    line = stream->readStringUntil('\n');
-    lineNum++;
-    itemPos = 0;
+  int itemTagClose = payload.indexOf(">", itemStart);
+  if (itemTagClose < 0) return false;
 
-    Serial.printf("[News] Line %d: %s\n", lineNum, line.c_str());
+  int itemEnd = payload.indexOf("</item>", itemTagClose);
+  if (itemEnd < 0) itemEnd = payload.indexOf("</entry>", itemTagClose);
+  if (itemEnd < 0) return false;
 
-    if (line.indexOf("<item>") >= 0) {
-      inItem = true;
-      itemLine = lineNum;
-      itemPos = line.indexOf("<item>");
-      Serial.printf("[News] Line of Item: %d, Index Of Item: %d\n", itemLine, itemPos);
+  String firstItem = payload.substring(itemTagClose + 1, itemEnd);
+
+  auto getTagContent = [](const String &src, const String &tag) -> String {
+    String open = "<" + tag + ">";
+    String close = "</" + tag + ">";
+    int start = src.indexOf(open);
+    if (start < 0) return "";
+    start += open.length();
+    int end = src.indexOf(close, start);
+    if (end < 0 || end <= start) return "";
+    String out = src.substring(start, end);
+    out.trim();
+    if (out.startsWith("<![CDATA[")) {
+      out = out.substring(9);
+      int cdataEnd = out.indexOf("]]>");
+      if (cdataEnd >= 0) out = out.substring(0, cdataEnd);
     }
+    out.trim();
+    return out;
+  };
 
-    if (inItem) {
-      if (line.indexOf("<title>", itemPos) >= 0 && title.length() == 0) {
-        int start = line.indexOf("<title><![CDATA[", itemPos) + 16;
-        int end   = line.indexOf("]]></title>", itemPos);
-        if (end > start) title = line.substring(start, end);
-        title_parsed = true;
-        Serial.println("[News] Title parsed");
-      }
+  title = getTagContent(firstItem, "title");
+  link = getTagContent(firstItem, "link");
+  desc = getTagContent(firstItem, "description");
 
-      if (line.indexOf("<description>", itemPos) >= 0 && desc.length() == 0) {
-        int start = line.indexOf("<description><![CDATA[", itemPos) + 22;
-        int end   = line.indexOf("]]></description>", itemPos);
-        if (end > start) {
-          desc = line.substring(start, end);
-          if (desc.length() > 300) desc = desc.substring(0, 300) + "...";
+  // Atom feeds often use <link href="..."/> instead of <link>...</link>
+  if (link.length() == 0) {
+    int linkTagStart = firstItem.indexOf("<link");
+    if (linkTagStart >= 0) {
+      int linkTagEnd = firstItem.indexOf(">", linkTagStart);
+      if (linkTagEnd > linkTagStart) {
+        String linkTag = firstItem.substring(linkTagStart, linkTagEnd + 1);
+        int hrefStart = linkTag.indexOf("href=\"");
+        if (hrefStart >= 0) {
+          hrefStart += 6;
+          int hrefEnd = linkTag.indexOf("\"", hrefStart);
+          if (hrefEnd > hrefStart) link = linkTag.substring(hrefStart, hrefEnd);
         }
-        desc_parsed = true;
-        Serial.println("[News] Desc parsed");
       }
-
-      if (line.indexOf("<link>", itemPos) >= 0 && link.length() == 0) {
-        int start = line.indexOf("<link>", itemPos) + 6;
-        int end   = line.indexOf("</link>", itemPos);
-        if (end > start) link = line.substring(start, end);
-        link_parsed = true;
-        Serial.println("[News] Link parsed");
-      }
-
-      if (link_parsed && desc_parsed && title_parsed) {
-        break; // Stop after the first item
-      }
-
     }
   }
 
-  http.end();
+  // Some feeds use <summary> instead of <description>
+  if (desc.length() == 0) desc = getTagContent(firstItem, "summary");
+
+  title = normalizeNewsText(title);
+  desc  = normalizeNewsText(desc);
+
+  if (desc.length() > 300) desc = desc.substring(0, 300) + "...";
 
   if (link == "") return false;
   if (title == "" && desc == "") return false;
 
+  Serial.println("[News] Feed: " + String(newsFeedNames[feedIndex]));
   Serial.println("[News] Title: " + title);
   Serial.println("[News] Link: " + link);
   Serial.println("[News] Desc: " + desc);
