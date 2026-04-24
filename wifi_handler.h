@@ -1,67 +1,131 @@
-// Decode common RSS HTML entities and normalize special characters so they render
-// consistently on embedded fonts that may not include all Unicode glyphs.
-static String normalizeNewsText(String text) {
-  // Basic HTML entities
-  text.replace("&amp;", "&");
-  text.replace("&lt;", "<");
-  text.replace("&gt;", ">");
-  text.replace("&quot;", "\"");
-  text.replace("&#39;", "'");
-  text.replace("&apos;", "'");
-  text.replace("&nbsp;", " ");
-
-  // German umlauts / sharp s from HTML entities
-  text.replace("&auml;", "ae");
-  text.replace("&ouml;", "oe");
-  text.replace("&uuml;", "ue");
-  text.replace("&Auml;", "Ae");
-  text.replace("&Ouml;", "Oe");
-  text.replace("&Uuml;", "Ue");
-  text.replace("&szlig;", "ss");
-
-  // Also handle numeric entities often used by feeds
-  text.replace("&#228;", "ae");
-  text.replace("&#246;", "oe");
-  text.replace("&#252;", "ue");
-  text.replace("&#196;", "Ae");
-  text.replace("&#214;", "Oe");
-  text.replace("&#220;", "Ue");
-  text.replace("&#223;", "ss");
-
-  // UTF-8 umlauts / sharp s
-  text.replace("\xC3\xA4", "ae");
-  text.replace("\xC3\xB6", "oe");
-  text.replace("\xC3\xBC", "ue");
-  text.replace("\xC3\x84", "Ae");
-  text.replace("\xC3\x96", "Oe");
-  text.replace("\xC3\x9C", "Ue");
-  text.replace("\xC3\x9F", "ss");
-
-  // Common mojibake fallback if UTF-8 was interpreted as latin1 somewhere upstream
-  text.replace("\xC3\x83\xC2\xA4", "ae");
-  text.replace("\xC3\x83\xC2\xB6", "oe");
-  text.replace("\xC3\x83\xC2\xBC", "ue");
-  text.replace("\xC3\x83\xE2\x80\x9E", "Ae");
-  text.replace("\xC3\x83\xE2\x80\x93", "Oe");
-  text.replace("\xC3\x83\xE2\x80\x9C", "Ue");
-  text.replace("\xC3\x83\xC5\xB8", "ss");
-
-  // Remove simple HTML tags that occasionally leak from feeds
-  while (true) {
-    int tagStart = text.indexOf("<");
-    if (tagStart < 0) break;
-    int tagEnd = text.indexOf(">", tagStart);
-    if (tagEnd < 0) break;
-    text.remove(tagStart, (tagEnd - tagStart) + 1);
+static void appendNormalizedCodepoint(String &out, int cp) {
+  switch (cp) {
+    case 228: out += "ae"; return; // ä
+    case 246: out += "oe"; return; // ö
+    case 252: out += "ue"; return; // ü
+    case 196: out += "Ae"; return; // Ä
+    case 214: out += "Oe"; return; // Ö
+    case 220: out += "Ue"; return; // Ü
+    case 223: out += "ss"; return; // ß
+    default: break;
   }
 
-  // Normalize whitespace
-  text.replace("\r", " ");
-  text.replace("\n", " ");
-  while (text.indexOf("  ") >= 0) text.replace("  ", " ");
-  text.trim();
+  if (cp >= 32 && cp <= 126) out += (char)cp;
+}
 
-  return text;
+static bool decodeNamedEntity(const String &entity, String &decoded) {
+  if (entity == "amp")  { decoded = "&";  return true; }
+  if (entity == "lt")   { decoded = "<";  return true; }
+  if (entity == "gt")   { decoded = ">";  return true; }
+  if (entity == "quot") { decoded = "\""; return true; }
+  if (entity == "apos") { decoded = "'";  return true; }
+  if (entity == "nbsp") { decoded = " ";  return true; }
+  if (entity == "auml") { decoded = "ae"; return true; }
+  if (entity == "ouml") { decoded = "oe"; return true; }
+  if (entity == "uuml") { decoded = "ue"; return true; }
+  if (entity == "Auml") { decoded = "Ae"; return true; }
+  if (entity == "Ouml") { decoded = "Oe"; return true; }
+  if (entity == "Uuml") { decoded = "Ue"; return true; }
+  if (entity == "szlig"){ decoded = "ss"; return true; }
+  return false;
+}
+
+// Single-pass text normalization to limit reallocations and fragmentation.
+static String normalizeNewsText(const String &text) {
+  String out;
+  out.reserve(text.length() + 8);
+
+  bool inTag = false;
+  bool lastWasSpace = true;
+  const size_t n = text.length();
+
+  for (size_t i = 0; i < n; i++) {
+    uint8_t c = (uint8_t)text.charAt(i);
+
+    if (inTag) {
+      if (c == '>') inTag = false;
+      continue;
+    }
+
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+
+    // HTML entity decoding
+    if (c == '&') {
+      int semi = text.indexOf(';', i + 1);
+      if (semi > (int)i && semi - (int)i <= 10) {
+        String entity = text.substring(i + 1, semi);
+        String decoded;
+        bool ok = false;
+
+        if (entity.startsWith("#")) {
+          int cp = 0;
+          if (entity.startsWith("#x") || entity.startsWith("#X")) {
+            cp = (int)strtol(entity.substring(2).c_str(), nullptr, 16);
+          } else {
+            cp = entity.substring(1).toInt();
+          }
+          appendNormalizedCodepoint(out, cp);
+          ok = true;
+        } else {
+          ok = decodeNamedEntity(entity, decoded);
+          if (ok) out += decoded;
+        }
+
+        if (ok) {
+          i = (size_t)semi;
+          lastWasSpace = decoded == " ";
+          continue;
+        }
+      }
+    }
+
+    // UTF-8: map German special chars, pass ASCII through, drop unknown multibyte.
+    if (c < 0x80) {
+      if (c == '\r' || c == '\n' || c == '\t') c = ' ';
+      if (c == ' ') {
+        if (!lastWasSpace) out += ' ';
+        lastWasSpace = true;
+      } else if (c >= 32) {
+        out += (char)c;
+        lastWasSpace = false;
+      }
+      continue;
+    }
+
+    if (c == 0xC3 && i + 1 < n) {
+      uint8_t d = (uint8_t)text.charAt(i + 1);
+      if      (d == 0xA4) out += "ae"; // ä
+      else if (d == 0xB6) out += "oe"; // ö
+      else if (d == 0xBC) out += "ue"; // ü
+      else if (d == 0x84) out += "Ae"; // Ä
+      else if (d == 0x96) out += "Oe"; // Ö
+      else if (d == 0x9C) out += "Ue"; // Ü
+      else if (d == 0x9F) out += "ss"; // ß
+      i++;
+      lastWasSpace = false;
+      continue;
+    }
+
+    // Common mojibake sequences (Ã¤ etc.) represented as two UTF-8 codepoints.
+    if (c == 0xC3 && i + 3 < n && (uint8_t)text.charAt(i + 1) == 0x83 && (uint8_t)text.charAt(i + 2) == 0xC2) {
+      uint8_t d = (uint8_t)text.charAt(i + 3);
+      if      (d == 0xA4) out += "ae";
+      else if (d == 0xB6) out += "oe";
+      else if (d == 0xBC) out += "ue";
+      else if (d == 0x84) out += "Ae";
+      else if (d == 0x96) out += "Oe";
+      else if (d == 0x9C) out += "Ue";
+      i += 3;
+      lastWasSpace = false;
+      continue;
+    }
+  }
+
+  out.trim();
+  return out;
 }
 
 // Tries once to fetch the latest news
@@ -89,6 +153,7 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
   WiFiClient *stream = http.getStreamPtr();
   String firstItem = "";
   const size_t MAX_FIRST_ITEM_BUFFER = 24 * 1024; // safety cap for ESP32 RAM
+  firstItem.reserve(MAX_FIRST_ITEM_BUFFER);
 
   bool inItem = false;
   const char *endTag = nullptr;
