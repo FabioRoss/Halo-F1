@@ -125,60 +125,65 @@ void loadSettings() {
     }
 
     size_t len = preferences.getBytesLength("cfg");
-    size_t read = 0;
-    uint8_t rawVersion = 0;
-
-    if (len > 0) {
-        read = preferences.getBytes("cfg", &rawVersion, 1);
+    const size_t maxSupportedSize = sizeof(SavedSettings);
+    if (len == 0 || len > maxSupportedSize) {
+        preferences.end();
+        Serial.println("[Preferences] No valid saved settings found, using defaults.");
+        return;
     }
 
-    if (len == sizeof(SavedSettings) && read == 1 && rawVersion == SETTINGS_VERSION) {
+    uint8_t raw[maxSupportedSize];
+    memset(raw, 0, sizeof(raw));
+
+    size_t read = preferences.getBytes("cfg", raw, len);
+    preferences.end();
+    if (read != len || len < 1) {
+        Serial.println("[Preferences] No valid saved settings found, using defaults.");
+        return;
+    }
+
+    uint8_t rawVersion = raw[0];
+
+    if (rawVersion == SETTINGS_VERSION && len >= sizeof(SavedSettings)) {
         SavedSettings s{};
-        read = preferences.getBytes("cfg", &s, sizeof(s));
-        preferences.end();
-        if (read == sizeof(s)) {
-            applyLoadedSettingsCommon(
-                s.brightness, s.night_brightness, s.nightModeActive,
-                s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
-                s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
-            );
-            applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
-            newsPulseEnabled = s.newsPulseEnabled;
-            Serial.println("[Preferences] Settings loaded from flash.");
-            return;
-        }
-    } else if (len == sizeof(SavedSettingsV2) && read == 1 && rawVersion == 2) {
+        memcpy(&s, raw, sizeof(SavedSettings));
+        applyLoadedSettingsCommon(
+            s.brightness, s.night_brightness, s.nightModeActive,
+            s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
+            s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
+        );
+        applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
+        newsPulseEnabled = s.newsPulseEnabled;
+        Serial.println("[Preferences] Settings loaded from flash.");
+        return;
+    }
+
+    if (rawVersion == 2 && len >= sizeof(SavedSettingsV2)) {
         SavedSettingsV2 s{};
-        read = preferences.getBytes("cfg", &s, sizeof(s));
-        preferences.end();
-        if (read == sizeof(s)) {
-            applyLoadedSettingsCommon(
-                s.brightness, s.night_brightness, s.nightModeActive,
-                s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
-                s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
-            );
-            applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
-            newsPulseEnabled = true;
-            Serial.println("[Preferences] Loaded legacy v2 settings from flash.");
-            return;
-        }
-    } else if (len == sizeof(SavedSettingsV1) && read == 1 && rawVersion == 1) {
+        memcpy(&s, raw, sizeof(SavedSettingsV2));
+        applyLoadedSettingsCommon(
+            s.brightness, s.night_brightness, s.nightModeActive,
+            s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
+            s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
+        );
+        applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
+        newsPulseEnabled = true;
+        Serial.println("[Preferences] Loaded legacy v2 settings from flash.");
+        return;
+    }
+
+    if (rawVersion == 1 && len >= sizeof(SavedSettingsV1)) {
         SavedSettingsV1 s{};
-        read = preferences.getBytes("cfg", &s, sizeof(s));
-        preferences.end();
-        if (read == sizeof(s)) {
-            applyLoadedSettingsCommon(
-                s.brightness, s.night_brightness, s.nightModeActive,
-                s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
-                s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
-            );
-            applyLanguageAndFeed(s.languageIndex, 0);
-            newsPulseEnabled = true;
-            Serial.println("[Preferences] Loaded legacy v1 settings from flash.");
-            return;
-        }
-    } else {
-        preferences.end();
+        memcpy(&s, raw, sizeof(SavedSettingsV1));
+        applyLoadedSettingsCommon(
+            s.brightness, s.night_brightness, s.nightModeActive,
+            s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
+            s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
+        );
+        applyLanguageAndFeed(s.languageIndex, 0);
+        newsPulseEnabled = true;
+        Serial.println("[Preferences] Loaded legacy v1 settings from flash.");
+        return;
     }
 
     Serial.println("[Preferences] No valid saved settings found, using defaults.");
