@@ -136,6 +136,12 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
   HTTPClient http;
   uint8_t feedIndex = selectedNewsFeed < NEWS_FEED_COUNT ? selectedNewsFeed : 0;
   http.begin(client, newsFeedUrls[feedIndex]);
+  http.setUserAgent("Mozilla/5.0 (compatible; Halo-F1/1.0; +https://halof1.com)");
+  http.addHeader("Accept", "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8");
+  http.addHeader("Accept-Language", "en-US,en;q=0.8,nl;q=0.7,de;q=0.6,it;q=0.5");
+  // Request uncompressed response; ESP32 stream parser expects plain XML bytes.
+  http.addHeader("Accept-Encoding", "identity");
+  http.setTimeout(fastNewsFetchMode ? 4000 : 10000);
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
@@ -149,11 +155,13 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
   desc = "";
 
   auto getTagContent = [](const String &src, const String &tag) -> String {
-    String open = "<" + tag + ">";
+    String open = "<" + tag;
     String close = "</" + tag + ">";
     int start = src.indexOf(open);
     if (start < 0) return "";
-    start += open.length();
+    int openEnd = src.indexOf(">", start);
+    if (openEnd < 0) return "";
+    start = openEnd + 1;
     int end = src.indexOf(close, start);
     if (end < 0 || end <= start) return "";
     String out = src.substring(start, end);
@@ -178,6 +186,8 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
   bool inItem = false;
   const char *endTag = nullptr;
   unsigned long lastDataAt = millis();
+  String scanBuffer = "";
+  scanBuffer.reserve(512);
 
   const size_t CHUNK_SIZE = 256;
   char chunk[CHUNK_SIZE + 1];
@@ -200,11 +210,25 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
     String part = String(chunk);
 
     if (!inItem) {
-      int itemPos = part.indexOf("<item");
-      int entryPos = part.indexOf("<entry");
+      scanBuffer += part;
+      if (scanBuffer.length() > 1024) {
+        scanBuffer.remove(0, scanBuffer.length() - 1024);
+      }
+
+      int itemPos = scanBuffer.indexOf("<item");
+      int entryPos = scanBuffer.indexOf("<entry");
       if (itemPos >= 0 || entryPos >= 0) {
+        int startPos = -1;
         inItem = true;
-        endTag = (entryPos >= 0 && (itemPos < 0 || entryPos < itemPos)) ? "</entry>" : "</item>";
+        if (entryPos >= 0 && (itemPos < 0 || entryPos < itemPos)) {
+          endTag = "</entry>";
+          startPos = entryPos;
+        } else {
+          endTag = "</item>";
+          startPos = itemPos;
+        }
+        part = scanBuffer.substring(startPos);
+        scanBuffer = "";
       } else {
         continue;
       }
@@ -222,6 +246,8 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
     if (title.length() == 0) title = getTagContent(firstItem, "title");
     if (desc.length() == 0) desc = getTagContent(firstItem, "description");
     if (desc.length() == 0) desc = getTagContent(firstItem, "summary");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "content:encoded");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "content");
     if (link.length() == 0) link = getTagContent(firstItem, "link");
 
     // Atom feeds often use <link href="..."/> instead of <link>...</link>
@@ -232,16 +258,22 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
         if (linkTagEnd > linkTagStart) {
           String linkTag = firstItem.substring(linkTagStart, linkTagEnd + 1);
           int hrefStart = linkTag.indexOf("href=\"");
+          char quote = '"';
+          if (hrefStart < 0) {
+            hrefStart = linkTag.indexOf("href='");
+            quote = '\'';
+          }
           if (hrefStart >= 0) {
             hrefStart += 6;
-            int hrefEnd = linkTag.indexOf("\"", hrefStart);
+            int hrefEnd = linkTag.indexOf(quote, hrefStart);
             if (hrefEnd > hrefStart) link = linkTag.substring(hrefStart, hrefEnd);
           }
         }
       }
     }
 
-    if (link.length() > 0 && (title.length() > 0 || desc.length() > 0)) break;
+    // Don't stop too early: some feeds provide description later in the item.
+    if (link.length() > 0 && title.length() > 0 && desc.length() > 0) break;
     if (endTag && firstItem.indexOf(endTag) >= 0) break;
   }
 
@@ -260,24 +292,39 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
       int linkTagEnd = firstItem.indexOf(">", linkTagStart);
       if (linkTagEnd > linkTagStart) {
         String linkTag = firstItem.substring(linkTagStart, linkTagEnd + 1);
-        int hrefStart = linkTag.indexOf("href=\"");
-        if (hrefStart >= 0) {
-          hrefStart += 6;
-          int hrefEnd = linkTag.indexOf("\"", hrefStart);
+          int hrefStart = linkTag.indexOf("href=\"");
+          char quote = '"';
+          if (hrefStart < 0) {
+            hrefStart = linkTag.indexOf("href='");
+            quote = '\'';
+          }
+          if (hrefStart >= 0) {
+            hrefStart += 6;
+            int hrefEnd = linkTag.indexOf(quote, hrefStart);
           if (hrefEnd > hrefStart) link = linkTag.substring(hrefStart, hrefEnd);
         }
       }
     }
   }
 
-  // Some feeds use <summary> instead of <description>
+  // RSS fallback: some feeds provide the canonical article URL in <guid>.
+  if (link.length() == 0) link = getTagContent(firstItem, "guid");
+
+  // Some feeds use alternative description tags.
   if (desc.length() == 0) desc = getTagContent(firstItem, "summary");
+  if (desc.length() == 0) desc = getTagContent(firstItem, "content:encoded");
+  if (desc.length() == 0) desc = getTagContent(firstItem, "content");
 
   title = normalizeNewsText(title);
   desc  = normalizeNewsText(desc);
 
   if (desc.length() > 300) desc = desc.substring(0, 300) + "...";
 
+  if (link == "" && (title != "" || desc != "")) {
+    // Fallback: keep the news card usable even when a feed item has no
+    // per-article link that we can parse reliably.
+    link = newsFeedUrls[feedIndex];
+  }
   if (link == "") return false;
   if (title == "" && desc == "") return false;
 
@@ -293,12 +340,14 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
 // @TODO -- find a better way, maybe with a timer instead of while loop because it is the only blocking code we are doing
 bool getLatestNews(String &title, String &link, String &desc) {
   unsigned long long startTimestamp = millis();
+  const unsigned long maxFetchWindowMs = fastNewsFetchMode ? 6000UL : 30000UL;
+  const unsigned long retryDelayMs = fastNewsFetchMode ? 250UL : 1000UL;
   Serial.println("[News] Fetching News");
 
   while (!fetchLatestNews(title, link, desc)) {
     Serial.println("[News] Another cycle of news fetching");
-    delay(1000);
-    if (startTimestamp + 30000 < millis()) return false;
+    delay(retryDelayMs);
+    if (startTimestamp + maxFetchWindowMs < millis()) return false;
   }
 
   return true;
