@@ -1,13 +1,13 @@
 // ============================================================
 //  weather.h  –  Race-session weather via Open-Meteo (free, no key)
 //
-//  Include AFTER the global struct definitions in F1Halo.ino
+//  Include AFTER the global struct definitions in Halo-F1.ino
 //  and BEFORE ui.h and wifi_handler.h.
 //
 //  Public surface used by ui.h:
 //    session_weather[]   – per-session data array (indexed like next_race.sessions[])
 //    weather_fetched     – true once at least one successful fetch happened
-//    getWeatherIconText  – returns a short ASCII tag for the WMO code
+//    getWeatherIcon      – returns the glyph for the WMO code
 //    getWeatherColor     – returns an lv_color_t matching the condition
 //
 //  Public surface used by wifi_handler.h:
@@ -28,7 +28,7 @@ static SessionWeather session_weather[10];
 static bool           weather_fetched      = false;
 static unsigned long  last_weather_fetch_ms = 0;
 
-// How often we re-fetch (3 h in normal running; the f1_api_timer fires every hour
+// How often we re-fetch (1 h in normal running; the f1_api_timer fires every hour
 // and calls fetchWeatherForRace, which guards with this value so the real cadence
 // is "once per hour" without an extra timer)
 #define WEATHER_REFRESH_MS (3600000UL)
@@ -51,7 +51,7 @@ static unsigned long  last_weather_fetch_ms = 0;
 //   95,96,99 → thunderstorm
 
 // Returns the UTF-8 FontAwesome glyph string for a WMO weather code.
-// Symbols are defined in F1Halo.ino and rendered with weather_icons_16.
+// Symbols are defined in Halo-F1.ino and rendered with weather_icons_16.
 const char* getWeatherIcon(uint8_t code) {
     if (code == 0)        return WX_SYMBOL_SUN;
     if (code <= 2)        return WX_SYMBOL_CLOUD_SUN;

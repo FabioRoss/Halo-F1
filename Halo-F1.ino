@@ -3,9 +3,8 @@ const int DRIVERS_NUMBER = 22;
 // ESP32 Boards used v3.3.4
 
 // fix the results api for when there are changes that result in a lesser number of drivers
-// add other rss feed in other languages
+// add more rss feeds and improve feed localization
 // add language switcher to wifi setup screen --> not applicable right now
-// settings: make user decide if they want to see drivers standings, constructors or both one after the other in the main page (select tool)
 // settings: add bool switch to control if tabs should be switched to news when a new article is fetched
 
 #define DISPLAY_TYPE DISPLAY_CYD_543
@@ -26,9 +25,9 @@ const int DRIVERS_NUMBER = 22;
 #define SCREEN_HEIGHT 480
 
 #ifdef TOUCH_CAPACITIVE
-const String fw_version = "1.2.2-beta";
+const String fw_version = "1.2.3-beta";
 #else
-const String fw_version = "1.2.2-R-beta";
+const String fw_version = "1.2.3-R-beta";
 #endif
 
 
@@ -178,6 +177,25 @@ lv_obj_t * sessions_container, * standings_container;
 lv_obj_t * language_selector; // localized_text defined in localized_strings.h
 lv_obj_t * no_spoiler_switch; bool noSpoilerModeActive = true;
 lv_obj_t * brightness_slider, *night_brightness_slider; uint8_t brightness = 255, night_brightness = 30;
+lv_obj_t * news_feed_selector; uint8_t selectedNewsFeed = 0;
+lv_obj_t * news_pulse_switch; bool newsPulseEnabled = true;
+bool fastNewsFetchMode = false;
+
+const uint8_t NEWS_FEED_COUNT = 5;
+const char * const newsFeedNames[NEWS_FEED_COUNT] = {
+  "The Race (EN)",
+  "Formula1.com (EN)",
+  "Motorsport-Total (DE)",
+  "RacingNews365 (NL)",
+  "FormulaPassion (IT)"
+};
+const char * const newsFeedUrls[NEWS_FEED_COUNT] = {
+  "https://www.the-race.com/category/formula-1/rss/",
+  "https://www.formula1.com/en/latest/all.xml",
+  "https://www.motorsport-total.com/rss/rss_formel-1.xml",
+  "https://racingnews365.nl/feed/news.xml",
+  "https://www.formulapassion.it/motorsport/formula-1/feed"
+};
 
 // No-Spoiler lift state (not a setting — temporary per-session override)
 bool   noSpoilerLifted            = false; // true after user presses "Show"
@@ -215,6 +233,8 @@ struct TabsStruct {
 };
 
 TabsStruct tabs;
+lv_obj_t * news_tab_button = nullptr;
+bool hasUnreadNews = false;
 
 // Standings tab state
 lv_obj_t * standings_tab_list = nullptr;

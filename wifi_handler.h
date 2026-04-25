@@ -1,85 +1,334 @@
+static void appendNormalizedCodepoint(String &out, int cp) {
+  switch (cp) {
+    case 228: out += "ae"; return; // ä
+    case 246: out += "oe"; return; // ö
+    case 252: out += "ue"; return; // ü
+    case 196: out += "Ae"; return; // Ä
+    case 214: out += "Oe"; return; // Ö
+    case 220: out += "Ue"; return; // Ü
+    case 223: out += "ss"; return; // ß
+    default: break;
+  }
+
+  if (cp >= 32 && cp <= 126) out += (char)cp;
+}
+
+static bool decodeNamedEntity(const String &entity, String &decoded) {
+  if (entity == "amp")  { decoded = "&";  return true; }
+  if (entity == "lt")   { decoded = "<";  return true; }
+  if (entity == "gt")   { decoded = ">";  return true; }
+  if (entity == "quot") { decoded = "\""; return true; }
+  if (entity == "apos") { decoded = "'";  return true; }
+  if (entity == "nbsp") { decoded = " ";  return true; }
+  if (entity == "auml") { decoded = "ae"; return true; }
+  if (entity == "ouml") { decoded = "oe"; return true; }
+  if (entity == "uuml") { decoded = "ue"; return true; }
+  if (entity == "Auml") { decoded = "Ae"; return true; }
+  if (entity == "Ouml") { decoded = "Oe"; return true; }
+  if (entity == "Uuml") { decoded = "Ue"; return true; }
+  if (entity == "szlig"){ decoded = "ss"; return true; }
+  return false;
+}
+
+// Single-pass text normalization to limit reallocations and fragmentation.
+static String normalizeNewsText(const String &text) {
+  String out;
+  out.reserve(text.length() + 8);
+
+  bool inTag = false;
+  bool lastWasSpace = true;
+  const size_t n = text.length();
+
+  for (size_t i = 0; i < n; i++) {
+    uint8_t c = (uint8_t)text.charAt(i);
+
+    if (inTag) {
+      if (c == '>') inTag = false;
+      continue;
+    }
+
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+
+    // HTML entity decoding
+    if (c == '&') {
+      int semi = text.indexOf(';', i + 1);
+      if (semi > (int)i && semi - (int)i <= 10) {
+        String entity = text.substring(i + 1, semi);
+        String decoded;
+        bool ok = false;
+
+        if (entity.startsWith("#")) {
+          int cp = 0;
+          if (entity.startsWith("#x") || entity.startsWith("#X")) {
+            cp = (int)strtol(entity.substring(2).c_str(), nullptr, 16);
+          } else {
+            cp = entity.substring(1).toInt();
+          }
+          appendNormalizedCodepoint(out, cp);
+          ok = true;
+        } else {
+          ok = decodeNamedEntity(entity, decoded);
+          if (ok) out += decoded;
+        }
+
+        if (ok) {
+          i = (size_t)semi;
+          lastWasSpace = decoded == " ";
+          continue;
+        }
+      }
+    }
+
+    // UTF-8: map German special chars, pass ASCII through, drop unknown multibyte.
+    if (c < 0x80) {
+      if (c == '\r' || c == '\n' || c == '\t') c = ' ';
+      if (c == ' ') {
+        if (!lastWasSpace) out += ' ';
+        lastWasSpace = true;
+      } else if (c >= 32) {
+        out += (char)c;
+        lastWasSpace = false;
+      }
+      continue;
+    }
+
+    if (c == 0xC3 && i + 1 < n) {
+      uint8_t d = (uint8_t)text.charAt(i + 1);
+      if      (d == 0xA4) out += "ae"; // ä
+      else if (d == 0xB6) out += "oe"; // ö
+      else if (d == 0xBC) out += "ue"; // ü
+      else if (d == 0x84) out += "Ae"; // Ä
+      else if (d == 0x96) out += "Oe"; // Ö
+      else if (d == 0x9C) out += "Ue"; // Ü
+      else if (d == 0x9F) out += "ss"; // ß
+      i++;
+      lastWasSpace = false;
+      continue;
+    }
+
+    // Common mojibake sequences (Ã¤ etc.) represented as two UTF-8 codepoints.
+    if (c == 0xC3 && i + 3 < n && (uint8_t)text.charAt(i + 1) == 0x83 && (uint8_t)text.charAt(i + 2) == 0xC2) {
+      uint8_t d = (uint8_t)text.charAt(i + 3);
+      if      (d == 0xA4) out += "ae";
+      else if (d == 0xB6) out += "oe";
+      else if (d == 0xBC) out += "ue";
+      else if (d == 0x84) out += "Ae";
+      else if (d == 0x96) out += "Oe";
+      else if (d == 0x9C) out += "Ue";
+      i += 3;
+      lastWasSpace = false;
+      continue;
+    }
+  }
+
+  out.trim();
+  return out;
+}
+
 // Tries once to fetch the latest news
 bool fetchLatestNews(String &title, String &link, String &desc) {
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
-  http.begin(client, "https://www.the-race.com/category/formula-1/rss/");
+  uint8_t feedIndex = selectedNewsFeed < NEWS_FEED_COUNT ? selectedNewsFeed : 0;
+  http.begin(client, newsFeedUrls[feedIndex]);
+  http.setUserAgent("Mozilla/5.0 (compatible; Halo-F1/1.0; +https://halof1.com)");
+  http.addHeader("Accept", "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8");
+  http.addHeader("Accept-Language", "en-US,en;q=0.8,nl;q=0.7,de;q=0.6,it;q=0.5");
+  // Request uncompressed response; ESP32 stream parser expects plain XML bytes.
+  http.addHeader("Accept-Encoding", "identity");
+  http.setTimeout(fastNewsFetchMode ? 4000 : 10000);
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("[News] HTTP error: %d\n", httpCode);
+    Serial.printf("[News] HTTP error: %d (feed: %s)\n", httpCode, newsFeedNames[feedIndex]);
     http.end();
     return false;
   }
-
-  WiFiClient *stream = http.getStreamPtr();
-
-  String line;
-  bool inItem = false;
-  int lineNum = 0, itemLine = 0;
-  int itemPos = -1;
 
   title = "";
   link = "";
   desc = "";
 
-  bool title_parsed = false, link_parsed = false, desc_parsed = false;
+  auto getTagContent = [](const String &src, const String &tag) -> String {
+    String open = "<" + tag;
+    String close = "</" + tag + ">";
+    int start = src.indexOf(open);
+    if (start < 0) return "";
+    int openEnd = src.indexOf(">", start);
+    if (openEnd < 0) return "";
+    start = openEnd + 1;
+    int end = src.indexOf(close, start);
+    if (end < 0 || end <= start) return "";
+    String out = src.substring(start, end);
+    out.trim();
+    if (out.startsWith("<![CDATA[")) {
+      out = out.substring(9);
+      int cdataEnd = out.indexOf("]]>");
+      if (cdataEnd >= 0) out = out.substring(0, cdataEnd);
+    }
+    out.trim();
+    return out;
+  };
 
-  while (stream->connected() && stream->available()) {
-    line = stream->readStringUntil('\n');
-    lineNum++;
-    itemPos = 0;
+  // Stream-based parsing to avoid loading the full feed in RAM.
+  // We buffer only part of the first <item>/<entry>, and exit early when
+  // we have enough data to render the card.
+  WiFiClient *stream = http.getStreamPtr();
+  String firstItem = "";
+  const size_t MAX_FIRST_ITEM_BUFFER = 24 * 1024; // safety cap for ESP32 RAM
+  firstItem.reserve(MAX_FIRST_ITEM_BUFFER);
 
-    Serial.printf("[News] Line %d: %s\n", lineNum, line.c_str());
+  bool inItem = false;
+  const char *endTag = nullptr;
+  unsigned long lastDataAt = millis();
+  String scanBuffer = "";
+  scanBuffer.reserve(512);
 
-    if (line.indexOf("<item>") >= 0) {
-      inItem = true;
-      itemLine = lineNum;
-      itemPos = line.indexOf("<item>");
-      Serial.printf("[News] Line of Item: %d, Index Of Item: %d\n", itemLine, itemPos);
+  const size_t CHUNK_SIZE = 256;
+  char chunk[CHUNK_SIZE + 1];
+
+  while (stream->connected() || stream->available()) {
+    if (!stream->available()) {
+      // Don't block forever on stalled connections.
+      if (millis() - lastDataAt > 5000) break;
+      delay(1);
+      continue;
     }
 
-    if (inItem) {
-      if (line.indexOf("<title>", itemPos) >= 0 && title.length() == 0) {
-        int start = line.indexOf("<title><![CDATA[", itemPos) + 16;
-        int end   = line.indexOf("]]></title>", itemPos);
-        if (end > start) title = line.substring(start, end);
-        title_parsed = true;
-        Serial.println("[News] Title parsed");
+    size_t toRead = stream->available();
+    if (toRead > CHUNK_SIZE) toRead = CHUNK_SIZE;
+    int got = stream->readBytes(chunk, toRead);
+    if (got <= 0) continue;
+    chunk[got] = '\0';
+    lastDataAt = millis();
+
+    String part = String(chunk);
+
+    if (!inItem) {
+      scanBuffer += part;
+      if (scanBuffer.length() > 1024) {
+        scanBuffer.remove(0, scanBuffer.length() - 1024);
       }
 
-      if (line.indexOf("<description>", itemPos) >= 0 && desc.length() == 0) {
-        int start = line.indexOf("<description><![CDATA[", itemPos) + 22;
-        int end   = line.indexOf("]]></description>", itemPos);
-        if (end > start) {
-          desc = line.substring(start, end);
-          if (desc.length() > 300) desc = desc.substring(0, 300) + "...";
+      int itemPos = scanBuffer.indexOf("<item");
+      int entryPos = scanBuffer.indexOf("<entry");
+      if (itemPos >= 0 || entryPos >= 0) {
+        int startPos = -1;
+        inItem = true;
+        if (entryPos >= 0 && (itemPos < 0 || entryPos < itemPos)) {
+          endTag = "</entry>";
+          startPos = entryPos;
+        } else {
+          endTag = "</item>";
+          startPos = itemPos;
         }
-        desc_parsed = true;
-        Serial.println("[News] Desc parsed");
+        part = scanBuffer.substring(startPos);
+        scanBuffer = "";
+      } else {
+        continue;
       }
-
-      if (line.indexOf("<link>", itemPos) >= 0 && link.length() == 0) {
-        int start = line.indexOf("<link>", itemPos) + 6;
-        int end   = line.indexOf("</link>", itemPos);
-        if (end > start) link = line.substring(start, end);
-        link_parsed = true;
-        Serial.println("[News] Link parsed");
-      }
-
-      if (link_parsed && desc_parsed && title_parsed) {
-        break; // Stop after the first item
-      }
-
     }
+
+    if (firstItem.length() + (size_t)got > MAX_FIRST_ITEM_BUFFER) {
+      Serial.println("[News] First item exceeded buffer cap, aborting parse.");
+      http.end();
+      return false;
+    }
+
+    firstItem += part;
+
+    // Early extraction makes parsing robust even when feed markup is large.
+    if (title.length() == 0) title = getTagContent(firstItem, "title");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "description");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "summary");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "content:encoded");
+    if (desc.length() == 0) desc = getTagContent(firstItem, "content");
+    if (link.length() == 0) link = getTagContent(firstItem, "link");
+
+    // Atom feeds often use <link href="..."/> instead of <link>...</link>
+    if (link.length() == 0) {
+      int linkTagStart = firstItem.indexOf("<link");
+      if (linkTagStart >= 0) {
+        int linkTagEnd = firstItem.indexOf(">", linkTagStart);
+        if (linkTagEnd > linkTagStart) {
+          String linkTag = firstItem.substring(linkTagStart, linkTagEnd + 1);
+          int hrefStart = linkTag.indexOf("href=\"");
+          char quote = '"';
+          if (hrefStart < 0) {
+            hrefStart = linkTag.indexOf("href='");
+            quote = '\'';
+          }
+          if (hrefStart >= 0) {
+            hrefStart += 6;
+            int hrefEnd = linkTag.indexOf(quote, hrefStart);
+            if (hrefEnd > hrefStart) link = linkTag.substring(hrefStart, hrefEnd);
+          }
+        }
+      }
+    }
+
+    // Don't stop too early: some feeds provide description later in the item.
+    if (link.length() > 0 && title.length() > 0 && desc.length() > 0) break;
+    if (endTag && firstItem.indexOf(endTag) >= 0) break;
   }
 
   http.end();
 
+  if (!inItem || firstItem.length() == 0) return false;
+
+  title = getTagContent(firstItem, "title");
+  if (link.length() == 0) link = getTagContent(firstItem, "link");
+  if (desc.length() == 0) desc = getTagContent(firstItem, "description");
+
+  // Atom feeds often use <link href="..."/> instead of <link>...</link>
+  if (link.length() == 0) {
+    int linkTagStart = firstItem.indexOf("<link");
+    if (linkTagStart >= 0) {
+      int linkTagEnd = firstItem.indexOf(">", linkTagStart);
+      if (linkTagEnd > linkTagStart) {
+        String linkTag = firstItem.substring(linkTagStart, linkTagEnd + 1);
+          int hrefStart = linkTag.indexOf("href=\"");
+          char quote = '"';
+          if (hrefStart < 0) {
+            hrefStart = linkTag.indexOf("href='");
+            quote = '\'';
+          }
+          if (hrefStart >= 0) {
+            hrefStart += 6;
+            int hrefEnd = linkTag.indexOf(quote, hrefStart);
+          if (hrefEnd > hrefStart) link = linkTag.substring(hrefStart, hrefEnd);
+        }
+      }
+    }
+  }
+
+  // RSS fallback: some feeds provide the canonical article URL in <guid>.
+  if (link.length() == 0) link = getTagContent(firstItem, "guid");
+
+  // Some feeds use alternative description tags.
+  if (desc.length() == 0) desc = getTagContent(firstItem, "summary");
+  if (desc.length() == 0) desc = getTagContent(firstItem, "content:encoded");
+  if (desc.length() == 0) desc = getTagContent(firstItem, "content");
+
+  title = normalizeNewsText(title);
+  desc  = normalizeNewsText(desc);
+
+  if (desc.length() > 300) desc = desc.substring(0, 300) + "...";
+
+  if (link == "" && (title != "" || desc != "")) {
+    // Fallback: keep the news card usable even when a feed item has no
+    // per-article link that we can parse reliably.
+    link = newsFeedUrls[feedIndex];
+  }
   if (link == "") return false;
   if (title == "" && desc == "") return false;
 
+  Serial.println("[News] Feed: " + String(newsFeedNames[feedIndex]));
   Serial.println("[News] Title: " + title);
   Serial.println("[News] Link: " + link);
   Serial.println("[News] Desc: " + desc);
@@ -91,12 +340,14 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
 // @TODO -- find a better way, maybe with a timer instead of while loop because it is the only blocking code we are doing
 bool getLatestNews(String &title, String &link, String &desc) {
   unsigned long long startTimestamp = millis();
+  const unsigned long maxFetchWindowMs = fastNewsFetchMode ? 6000UL : 30000UL;
+  const unsigned long retryDelayMs = fastNewsFetchMode ? 250UL : 1000UL;
   Serial.println("[News] Fetching News");
 
   while (!fetchLatestNews(title, link, desc)) {
     Serial.println("[News] Another cycle of news fetching");
-    delay(1000);
-    if (startTimestamp + 30000 < millis()) return false;
+    delay(retryDelayMs);
+    if (startTimestamp + maxFetchWindowMs < millis()) return false;
   }
 
   return true;

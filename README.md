@@ -14,9 +14,9 @@ The pre-compiled firmware is free to install from the [project website](https://
 - **Drivers' Championship** — Full standings table updated throughout the season; includes a pre-season fallback that populates the driver and constructor roster before the first race
 - **Session Results** — Qualifying (Q1/Q2/Q3) and race results fetched from the live OpenF1 API, including gap to leader
 - **No Spoiler Mode** — No unwanted spoilers when watching live sessions isn't an option!
-- **Latest News** — F1 headlines pulled from an RSS feed (currently English only)
+- **Latest News** — F1 headlines pulled from selectable RSS feeds (The Race (EN), Formula1.com (EN), Motorsport-Total (DE), RacingNews365 (NL), FormulaPassion (IT))
 - **Night Mode** — Configurable dimming window; set start/stop times and a separate night brightness level
-- **8 Languages** — English, Italian, Spanish, French, Dutch, German, Portuguese, Norwegian
+- **9 Languages** — English, Italian, Spanish, French, Dutch, German, Portuguese, Norwegian, Polish
 - **Captive-portal Wi-Fi setup** — On first boot the device broadcasts an access point (`Halo-F1`); connect from any phone or laptop to enter your home network credentials. No app or computer required after initial flashing
 - **Update notifications** — The device checks for new firmware versions on startup and shows an in-app notification if an update is available
 
@@ -71,7 +71,7 @@ Install the following through the Library Manager (Sketch → Include Library �
 
 ### Pin Configuration
 
-The following defines are set at the top of `F1Halo.ino` and match the JC4827W543 board:
+The following defines are set at the top of `Halo-F1.ino` and match the JC4827W543 board:
 
 ```cpp
 #define DISPLAY_TYPE    DISPLAY_CYD_543
@@ -91,7 +91,7 @@ The following defines are set at the top of `F1Halo.ino` and match the JC4827W54
 ### Compiling and Uploading
 
 1. Clone or download this repository
-2. Open `F1Halo.ino` in Arduino IDE
+2. Open `Halo-F1.ino` in Arduino IDE
 3. If your board is Capacitive Touch, make sure `#define TOUCH_CAPACITIVE` is set, otherwise comment it out to compile for Resistive Touch
 4. Select **ESP32S3 Dev Module** as the target board
 5. Set **Flash Size** to **4MB**, **PSRAM** to **OPI PSRAM** (8 MB), and **Partition Scheme** to `Huge APP (3MB No OTA/1MB SPIFFS)`. Set **USB CDC On Boot** to **enabled** to get Serial feed via USB
@@ -112,7 +112,7 @@ Halo F1 fetches all data over HTTPS. No account or API key is required.
 | Live session results          | [OpenF1 API](https://openf1.org/)            |
 | Timezone offset from IP       | [IP API](https://ipapi.co/)                  |
 | Weather Forecast              | [Open Meteo](https://open-meteo.com/)        |
-| News headlines                | The Race — RSS feed                          |
+| News headlines                | Selectable RSS feeds (The Race (EN), Formula1.com (EN), Motorsport-Total (DE), RacingNews365 (NL), FormulaPassion (IT)) |
 
 ### Anonymous Statistics
 
@@ -130,17 +130,22 @@ No personal data, Wi-Fi credentials, location or network information is ever tra
 ## Project Structure
 
 ```
-F1Halo.ino            — Main sketch: hardware initialisation, setup(), loop()
+Halo-F1.ino           — Main sketch: hardware initialisation, setup(), loop()
 ui.h                  — LVGL UI construction and all event handlers
 wifi_handler.h        — Wi-Fi setup, all API fetch functions, statistics ping
 weather.h             — Weather API calls and utils
-localized_strings.h   — Translated string tables for all 8 supported languages
+localized_strings.h   — Translated string tables for all 9 supported languages
+settings.h            — Persistent settings save/load (Preferences/NVS)
 utils.h               — Utility functions (UUID generation, time helpers, etc.)
 notifications.h       — In-app notification queue and scheduler
-audio.h               — Sound playback via I²S (in the works)
+audio.h               — I²S notification sound playback
 touchscreen.h         — Capacitive touch driver wrapper (GT911)
 ESP_I2S.cpp / .h      — I²S audio driver (adapted from the Arduino ESP32 core)
+lv_bb_spi_lcd.cpp/.h  — LVGL bridge for bb_spi_lcd display backend
 lv_conf.h             — LVGL configuration tuned for the JC4827W543 display
+montserrat_*.c        — Embedded font assets used by the UI
+f1_symbols_28.c       — Icon font symbols for tab/navigation glyphs
+weather_icons_12.c    — Weather icon glyph font used in race sessions
 ```
 
 ---
@@ -154,9 +159,9 @@ lv_conf.h             — LVGL configuration tuned for the JC4827W543 display
   - [ ] Exclude sound during night times
   - [ ] Add Menu config option
   - [ ] 3D Case rework to fit speaker
-- [ ] Add constructors standings, let user choose if to display drivers, constructors or both standings
-- [ ] Add timezone override in menu
-- [ ] Add more RSS feeds
+- [x] Add constructors standings, let user choose if to display drivers, constructors or both standings
+- [x] Add timezone override in menu
+- [x] Add more RSS feeds
 
 ---
 
