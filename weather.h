@@ -27,6 +27,7 @@ struct SessionWeather {
 static SessionWeather session_weather[10];
 static bool           weather_fetched      = false;
 static unsigned long  last_weather_fetch_ms = 0;
+static String         last_weather_race_key = "";
 
 // How often we re-fetch (1 h in normal running; the f1_api_timer fires every hour
 // and calls fetchWeatherForRace, which guards with this value so the real cadence
@@ -89,9 +90,28 @@ lv_color_t getWeatherColor(uint8_t code) {
 bool fetchWeatherForRace(NextRaceInfo& race) {
     if (race.sessionCount <= 0) return false;
 
+    // Build a stable key for the currently loaded race weekend.
+    // If this changes, cached weather belongs to a different weekend and must
+    // not be reused even if the time-based refresh window is still active.
+    String race_key = race.raceName + "|" +
+                      race.sessions[0].date + "|" +
+                      race.sessions[race.sessionCount - 1].date + "|" +
+                      String(race.lat, 4) + "|" +
+                      String(race.lon, 4);
+    bool race_changed = (last_weather_race_key.length() == 0) ? false : (race_key != last_weather_race_key);
+    if (race_changed) {
+        Serial.println("[Weather] Race changed, invalidating cached weather.");
+        for (int s = 0; s < 10; s++) {
+            session_weather[s] = { 0, 0, false };
+        }
+        weather_fetched = false;
+        last_weather_fetch_ms = 0;
+    }
+
     // ── Throttle: don't hit the API more than once per WEATHER_REFRESH_MS ──
     unsigned long now_ms = millis();
-    if (weather_fetched &&
+    if (!race_changed &&
+        weather_fetched &&
         (now_ms - last_weather_fetch_ms) < WEATHER_REFRESH_MS &&
         now_ms > last_weather_fetch_ms) {
         // Still fresh — nothing to do
@@ -222,6 +242,7 @@ bool fetchWeatherForRace(NextRaceInfo& race) {
 
     weather_fetched       = true;
     last_weather_fetch_ms = millis();
+    last_weather_race_key = race_key;
     Serial.println("[Weather] Fetch complete.");
     return true;
 }
