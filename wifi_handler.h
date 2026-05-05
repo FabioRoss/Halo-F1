@@ -1,16 +1,30 @@
-static void appendNormalizedCodepoint(String &out, int cp) {
-  switch (cp) {
-    case 228: out += "ae"; return; // ä
-    case 246: out += "oe"; return; // ö
-    case 252: out += "ue"; return; // ü
-    case 196: out += "Ae"; return; // Ä
-    case 214: out += "Oe"; return; // Ö
-    case 220: out += "Ue"; return; // Ü
-    case 223: out += "ss"; return; // ß
-    default: break;
+static void appendUtf8Codepoint(String &out, int cp) {
+  if (cp < 0) return;
+
+  if (cp <= 0x7F) {
+    if (cp >= 32) out += (char)cp;
+    return;
   }
 
-  if (cp >= 32 && cp <= 126) out += (char)cp;
+  if (cp <= 0x7FF) {
+    out += (char)(0xC0 | ((cp >> 6) & 0x1F));
+    out += (char)(0x80 | (cp & 0x3F));
+    return;
+  }
+
+  if (cp <= 0xFFFF) {
+    out += (char)(0xE0 | ((cp >> 12) & 0x0F));
+    out += (char)(0x80 | ((cp >> 6) & 0x3F));
+    out += (char)(0x80 | (cp & 0x3F));
+    return;
+  }
+
+  if (cp <= 0x10FFFF) {
+    out += (char)(0xF0 | ((cp >> 18) & 0x07));
+    out += (char)(0x80 | ((cp >> 12) & 0x3F));
+    out += (char)(0x80 | ((cp >> 6) & 0x3F));
+    out += (char)(0x80 | (cp & 0x3F));
+  }
 }
 
 static bool decodeNamedEntity(const String &entity, String &decoded) {
@@ -20,13 +34,13 @@ static bool decodeNamedEntity(const String &entity, String &decoded) {
   if (entity == "quot") { decoded = "\""; return true; }
   if (entity == "apos") { decoded = "'";  return true; }
   if (entity == "nbsp") { decoded = " ";  return true; }
-  if (entity == "auml") { decoded = "ae"; return true; }
-  if (entity == "ouml") { decoded = "oe"; return true; }
-  if (entity == "uuml") { decoded = "ue"; return true; }
-  if (entity == "Auml") { decoded = "Ae"; return true; }
-  if (entity == "Ouml") { decoded = "Oe"; return true; }
-  if (entity == "Uuml") { decoded = "Ue"; return true; }
-  if (entity == "szlig"){ decoded = "ss"; return true; }
+  if (entity == "auml") { decoded = "ä"; return true; }
+  if (entity == "ouml") { decoded = "ö"; return true; }
+  if (entity == "uuml") { decoded = "ü"; return true; }
+  if (entity == "Auml") { decoded = "Ä"; return true; }
+  if (entity == "Ouml") { decoded = "Ö"; return true; }
+  if (entity == "Uuml") { decoded = "Ü"; return true; }
+  if (entity == "szlig"){ decoded = "ß"; return true; }
   return false;
 }
 
@@ -67,7 +81,7 @@ static String normalizeNewsText(const String &text) {
           } else {
             cp = entity.substring(1).toInt();
           }
-          appendNormalizedCodepoint(out, cp);
+          appendUtf8Codepoint(out, cp);
           ok = true;
         } else {
           ok = decodeNamedEntity(entity, decoded);
@@ -82,7 +96,7 @@ static String normalizeNewsText(const String &text) {
       }
     }
 
-    // UTF-8: map German special chars, pass ASCII through, drop unknown multibyte.
+    // Preserve UTF-8 bytes so RSS titles/descriptions can render localized text.
     if (c < 0x80) {
       if (c == '\r' || c == '\n' || c == '\t') c = ' ';
       if (c == ' ') {
@@ -95,33 +109,28 @@ static String normalizeNewsText(const String &text) {
       continue;
     }
 
-    if (c == 0xC3 && i + 1 < n) {
-      uint8_t d = (uint8_t)text.charAt(i + 1);
-      if      (d == 0xA4) out += "ae"; // ä
-      else if (d == 0xB6) out += "oe"; // ö
-      else if (d == 0xBC) out += "ue"; // ü
-      else if (d == 0x84) out += "Ae"; // Ä
-      else if (d == 0x96) out += "Oe"; // Ö
-      else if (d == 0x9C) out += "Ue"; // Ü
-      else if (d == 0x9F) out += "ss"; // ß
-      i++;
-      lastWasSpace = false;
-      continue;
-    }
-
-    // Common mojibake sequences (Ã¤ etc.) represented as two UTF-8 codepoints.
+    // Fix common mojibake sequences (Ã¤ etc.) back to the intended UTF-8 chars.
     if (c == 0xC3 && i + 3 < n && (uint8_t)text.charAt(i + 1) == 0x83 && (uint8_t)text.charAt(i + 2) == 0xC2) {
       uint8_t d = (uint8_t)text.charAt(i + 3);
-      if      (d == 0xA4) out += "ae";
-      else if (d == 0xB6) out += "oe";
-      else if (d == 0xBC) out += "ue";
-      else if (d == 0x84) out += "Ae";
-      else if (d == 0x96) out += "Oe";
-      else if (d == 0x9C) out += "Ue";
+      if      (d == 0xA4) out += "ä";
+      else if (d == 0xB6) out += "ö";
+      else if (d == 0xBC) out += "ü";
+      else if (d == 0x84) out += "Ä";
+      else if (d == 0x96) out += "Ö";
+      else if (d == 0x9C) out += "Ü";
+      else if (d == 0x9F) out += "ß";
+      else {
+        out += (char)c;
+        lastWasSpace = false;
+        continue;
+      }
       i += 3;
       lastWasSpace = false;
       continue;
     }
+
+    out += (char)c;
+    lastWasSpace = false;
   }
 
   out.trim();
@@ -204,10 +213,11 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
     if (toRead > CHUNK_SIZE) toRead = CHUNK_SIZE;
     int got = stream->readBytes(chunk, toRead);
     if (got <= 0) continue;
-    chunk[got] = '\0';
     lastDataAt = millis();
 
-    String part = String(chunk);
+    // Use length-aware String construction to avoid implicit strlen scan
+    // and to correctly handle any embedded '\0' bytes in the chunk.
+    String part = String(chunk, (unsigned int)got);
 
     if (!inItem) {
       scanBuffer += part;
@@ -234,7 +244,7 @@ bool fetchLatestNews(String &title, String &link, String &desc) {
       }
     }
 
-    if (firstItem.length() + (size_t)got > MAX_FIRST_ITEM_BUFFER) {
+    if (firstItem.length() + part.length() > MAX_FIRST_ITEM_BUFFER) {
       Serial.println("[News] First item exceeded buffer cap, aborting parse.");
       http.end();
       return false;
