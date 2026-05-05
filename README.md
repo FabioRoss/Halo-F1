@@ -60,12 +60,14 @@ If you want to compile from source, see the [Building from Source](#building-fro
 Install the following through the Library Manager (Sketch → Include Library → Manage Libraries).
 **IMPORTANT:** This project has been developed over an extended period of time, libraries used in it might have introduced breaking changes in latest updates. To ensure full compatibility please make sure to download the correct versions where indicated
 
-| Library             | Author          |
-| ------------------- | --------------- |
-| `LVGL v9.3`         | LVGL            |
-| `WiFiManager`       | tzapu           |
-| `ArduinoJson`       | Benoit Blanchon |
-| `bb_spi_lcd v2.7.1` | Larry Bank      |
+| Library                | Author                        | Version |
+| ---------------------- | ----------------------------- | ------- |
+| `ArduinoJson`          | Benoit Blanchon               | 7.4.2   |
+| `WiFiManager`          | tzapu                         | 2.0.17  |
+| `bb_captouch`          | Larry Bank                    | 1.2.2   |
+| `bb_spi_lcd`           | Larry Bank                    | 2.7.1   |
+| `incbin`               | Dale Weiler and AlexIII       | 0.1.2   |
+| `lvgl`                 | kisvegabor                    | 9.3.0   |
 
 > **Note:** `lv_conf.h` must be configured for the JC4827W543 display before compiling. The `lv_conf.h` included in this repository is already set up correctly.
 
@@ -98,6 +100,23 @@ The following defines are set at the top of `Halo-F1.ino` and match the JC4827W5
 6. Connect the board via a USB-A to USB-C data cable
 7. If the port does not appear, hold `BOOT`, press `RST`, then release `BOOT` to enter flash mode
 8. Click **Upload**
+
+### Regenerating Fonts (Unicode)
+
+If you add or update translations, regenerate `montserrat_*.c` so all special characters render correctly.
+
+1. Install `lv_font_conv` (one-time): `npm i -g lv_font_conv`  
+   (or keep using `npx lv_font_conv`)
+2. Put these files in `assets/fonts/`:
+   - `assets/fonts/Montserrat-Regular.ttf`
+   - `assets/fonts/Font Awesome 7 Free-Solid-900.otf`
+3. Run:
+
+```bash
+python scripts/generate_fonts.py
+```
+
+This regenerates all font sizes used by the UI (`12, 14, 18, 20, 24, 38`) with Unicode coverage for all currently supported languages.
 
 ---
 
@@ -141,11 +160,14 @@ notifications.h       — In-app notification queue and scheduler
 audio.h               — I²S notification sound playback
 touchscreen.h         — Capacitive touch driver wrapper (GT911)
 ESP_I2S.cpp / .h      — I²S audio driver (adapted from the Arduino ESP32 core)
+wav_header.h          — WAV header structs/helpers used by the I²S audio path
 lv_bb_spi_lcd.cpp/.h  — LVGL bridge for bb_spi_lcd display backend
 lv_conf.h             — LVGL configuration tuned for the JC4827W543 display
 montserrat_*.c        — Embedded font assets used by the UI
 f1_symbols_28.c       — Icon font symbols for tab/navigation glyphs
 weather_icons_12.c    — Weather icon glyph font used in race sessions
+scripts/              — Tooling (e.g. `generate_fonts.py` for regenerating `montserrat_*.c`)
+assets/fonts/         — Optional local inputs for font generation (see Regenerating Fonts)
 ```
 
 ---
@@ -185,14 +207,18 @@ This source code is made publicly available for **personal, non-commercial use o
 
 No open-source license is granted. The absence of a license means this code is **not** open source — all rights not explicitly listed above are reserved by the author. If you are unsure whether your intended use is permitted, open an issue or get in touch.
 
+For third-party code/asset licenses, see `THIRD_PARTY_LICENSES.md` and `licenses/`.
+
 ---
 
 ## Acknowledgements
 
-- [LVGL](https://lvgl.io/) — Embedded graphics library
-- [WiFiManager](https://github.com/tzapu/WiFiManager) — Captive-portal Wi-Fi configuration by tzapu
-- [ArduinoJson](https://arduinojson.org/) — JSON parsing by Benoit Blanchon
-- [bb_spi_lcd](https://github.com/bitbank2/bb_spi_lcd) — SPI display driver by Larry Bank
+- [lvgl](https://lvgl.io/) — Embedded graphics library by kisvegabor (`9.3.0`)
+- [WiFiManager](https://github.com/tzapu/WiFiManager) — Captive-portal Wi-Fi configuration by tzapu (`2.0.17`)
+- [ArduinoJson](https://arduinojson.org/) — JSON parsing by Benoit Blanchon (`7.4.2`)
+- [bb_captouch](https://github.com/bitbank2/bb_captouch) — Touch support library by Larry Bank (`1.2.2`)
+- [bb_spi_lcd](https://github.com/bitbank2/bb_spi_lcd) — SPI display driver by Larry Bank (`2.7.1`)
+- [incbin](https://github.com/graphitemaster/incbin) — Header-only binary include helper by Dale Weiler and AlexIII (`0.1.2`)
 - [Jolpica / Ergast F1 API](https://jolpi.ca/) — Race calendar and standings data
 - [OpenF1](https://openf1.org/) — Live session result data
 - [Open Meteo](https://open-meteo.com/) — Weather forecast data
