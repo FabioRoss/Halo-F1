@@ -1,0 +1,5 @@
+# Local font source files (keep generated .c files in repo)
+assets/fonts/*.ttf
+assets/fonts/*.otf
+assets/fonts/*.woff
+assets/fonts/*.woff2
