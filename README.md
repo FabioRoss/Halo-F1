@@ -6,6 +6,32 @@ Halo F1 is a small, always-on display that shows everything you need about the c
 
 The pre-compiled firmware is free to install from the [project website](https://halof1.com/). This repository contains the full source code for reference and personal use.
 
+## Fork Notice
+
+This repository is a fork of Fabio Rossato's original Halo-F1 project.
+
+Original project:
+
+- [FabioRoss/Halo-F1](https://github.com/FabioRoss/Halo-F1)
+
+## Credits
+
+- Original concept, implementation, and project direction by Fabio Rossato.
+- This fork is maintained by DRIV3R78 with custom changes and ongoing improvements.
+
+## Versioning
+
+Firmware versioning for this fork follows the base version plus a fork suffix.
+
+Examples:
+
+- Capacitive build: `1.2.3-fork.1`
+- Resistive build: `1.2.3-R-fork.1`
+
+Single source of truth:
+
+- `fw_version` in `Halo-F1.ino`
+
 ---
 
 ## Features
@@ -14,15 +40,26 @@ The pre-compiled firmware is free to install from the [project website](https://
 - **Drivers' Championship** — Full standings table updated throughout the season; includes a pre-season fallback that populates the driver and constructor roster before the first race
 - **Session Results** — Qualifying (Q1/Q2/Q3) and race results fetched from the live OpenF1 API, including gap to leader
 - **No Spoiler Mode** — No unwanted spoilers when watching live sessions isn't an option!
+- **Standings Scroll Mode** — Optional auto-scroll for standings tables when enabled in settings
 - **Latest News** — F1 headlines pulled from selectable RSS feeds (The Race (EN), Formula1.com (EN), Motorsport-Total (DE), RacingNews365 (NL), FormulaPassion (IT))
+- **News Feed Selector** — Choose your preferred RSS source directly in settings
 - **Night Mode** — Configurable dimming window; set start/stop times and a separate night brightness level
 - **9 Languages** — English, Italian, Spanish, French, Dutch, German, Portuguese, Norwegian, Polish
 - **Captive-portal Wi-Fi setup** — On first boot the device broadcasts an access point (`Halo-F1`); connect from any phone or laptop to enter your home network credentials. No app or computer required after initial flashing
 - **Update notifications** — The device checks for new firmware versions on startup and shows an in-app notification if an update is available
 
+### Fork-Specific Features (This Repository)
+
+- **Fork branding and versioning** — Dedicated fork identity in UI/README and custom firmware version suffixes (`-fork.x`)
+- **Standings Scroll Mode** — Optional auto-scroll for standings tables (toggle in settings)
+- **News Feed Selector in settings** — Quickly switch between supported news sources from the device UI
+- **Improved multilingual character rendering** — Extended UTF-8 handling and refreshed font generation for all supported UI languages (EN/IT/ES/FR/NL/DE/PT/NO/PL)
+- **Refined font pipeline** — Lean/full font profiles to balance glyph coverage and firmware size
+
 ---
 
 ## Hardware
+
 
 | Component    | Detail                                |
 | ------------ | ------------------------------------- |
@@ -31,6 +68,7 @@ The pre-compiled firmware is free to install from the [project website](https://
 | Display      | 4.3" TFT, 480 × 272 px                |
 | Touch        | Capacitive (recommended) or Resistive |
 | Connectivity | Wi-Fi (2.4 GHz), Bluetooth            |
+
 
 The JC4827W543 is available [on Aliexpress at this link](https://s.click.aliexpress.com/e/_c2xQCrDH), get the capacitive touch version for a nicer look. A snap-fit 3D-printable case (no screws, no glue, prints in PLA on any FDM printer) is available free on [MakerWorld](https://makerworld.com/it/models/2492192-halo-your-f1-desktop-companion).
 
@@ -60,14 +98,16 @@ If you want to compile from source, see the [Building from Source](#building-fro
 Install the following through the Library Manager (Sketch → Include Library → Manage Libraries).
 **IMPORTANT:** This project has been developed over an extended period of time, libraries used in it might have introduced breaking changes in latest updates. To ensure full compatibility please make sure to download the correct versions where indicated
 
-| Library                | Author                        | Version |
-| ---------------------- | ----------------------------- | ------- |
-| `ArduinoJson`          | Benoit Blanchon               | 7.4.2   |
-| `WiFiManager`          | tzapu                         | 2.0.17  |
-| `bb_captouch`          | Larry Bank                    | 1.2.2   |
-| `bb_spi_lcd`           | Larry Bank                    | 2.7.1   |
-| `incbin`               | Dale Weiler and AlexIII       | 0.1.2   |
-| `lvgl`                 | kisvegabor                    | 9.3.0   |
+
+| Library       | Author                  | Version |
+| ------------- | ----------------------- | ------- |
+| `ArduinoJson` | Benoit Blanchon         | 7.4.2   |
+| `WiFiManager` | tzapu                   | 2.0.17  |
+| `bb_captouch` | Larry Bank              | 1.2.2   |
+| `bb_spi_lcd`  | Larry Bank              | 2.7.1   |
+| `incbin`      | Dale Weiler and AlexIII | 0.1.2   |
+| `lvgl`        | kisvegabor              | 9.3.0   |
+
 
 > **Note:** `lv_conf.h` must be configured for the JC4827W543 display before compiling. The `lv_conf.h` included in this repository is already set up correctly.
 
@@ -101,37 +141,20 @@ The following defines are set at the top of `Halo-F1.ino` and match the JC4827W5
 7. If the port does not appear, hold `BOOT`, press `RST`, then release `BOOT` to enter flash mode
 8. Click **Upload**
 
-### Regenerating Fonts (Unicode)
-
-If you add or update translations, regenerate `montserrat_*.c` so all special characters render correctly.
-
-1. Install `lv_font_conv` (one-time): `npm i -g lv_font_conv`  
-   (or keep using `npx lv_font_conv`)
-2. Put these files in `assets/fonts/`:
-   - `assets/fonts/Montserrat-Regular.ttf`
-   - `assets/fonts/Font Awesome 7 Free-Solid-900.otf`
-3. Run:
-
-```bash
-python scripts/generate_fonts.py
-```
-
-This regenerates all font sizes used by the UI (`12, 14, 18, 20, 24, 38`) with Unicode coverage for all currently supported languages.
-
----
-
 ## Data Sources
 
 Halo F1 fetches all data over HTTPS. No account or API key is required.
 
-| Data                          | Source                                       |
-| ----------------------------- | -------------------------------------------- |
-| Driver standings              | [Jolpica / Ergast F1 API](https://jolpi.ca/) |
-| Race calendar & session times | [Jolpica / Ergast F1 API](https://jolpi.ca/) |
-| Live session results          | [OpenF1 API](https://openf1.org/)            |
-| Timezone offset from IP       | [IP API](https://ipapi.co/)                  |
-| Weather Forecast              | [Open Meteo](https://open-meteo.com/)        |
-| News headlines                | Selectable RSS feeds (The Race (EN), Formula1.com (EN), Motorsport-Total (DE), RacingNews365 (NL), FormulaPassion (IT)) |
+
+| Data                          | Source                                                                                                                                                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Driver standings              | [Jolpica / Ergast F1 API](https://jolpi.ca/)                                                                                                                                                                           |
+| Race calendar & session times | [Jolpica / Ergast F1 API](https://jolpi.ca/)                                                                                                                                                                           |
+| Live session results          | [OpenF1 API](https://openf1.org/)                                                                                                                                                                                      |
+| Timezone offset from IP       | [IP API](https://ipapi.co/)                                                                                                                                                                                            |
+| Weather Forecast              | [Open Meteo](https://open-meteo.com/)                                                                                                                                                                                  |
+| News headlines                | Selectable RSS feeds: The Race (EN), Formula1.com (EN), Motorsport-Total (DE), RacingNews365 (NL), FormulaPassion (IT), Motorsport.com (ES), F1Only.fr (FR), Grande Premio (PT), Formel-1.no (NO), Wyprzedz Mnie! (PL) |
+
 
 ### Anonymous Statistics
 
@@ -166,24 +189,10 @@ lv_conf.h             — LVGL configuration tuned for the JC4827W543 display
 montserrat_*.c        — Embedded font assets used by the UI
 f1_symbols_28.c       — Icon font symbols for tab/navigation glyphs
 weather_icons_12.c    — Weather icon glyph font used in race sessions
-scripts/              — Tooling (e.g. `generate_fonts.py` for regenerating `montserrat_*.c`)
-assets/fonts/         — Optional local inputs for font generation (see Regenerating Fonts)
+scripts/generate_fonts.py — Font generation helper for `montserrat_*.c`
+THIRD_PARTY_LICENSES.md   — Third-party dependency and asset license inventory
+licenses/                 — Bundled third-party license reference texts
 ```
-
----
-
-## Future Developments
-
-- [x] No spoiler mode
-- [x] Weather forecast for each session
-- [ ] Audio notifications when a new article is fetched
-  - [x] Library inclusion and set up
-  - [ ] Exclude sound during night times
-  - [ ] Add Menu config option
-  - [ ] 3D Case rework to fit speaker
-- [x] Add constructors standings, let user choose if to display drivers, constructors or both standings
-- [x] Add timezone override in menu
-- [x] Add more RSS feeds
 
 ---
 
@@ -233,3 +242,4 @@ For third-party code/asset licenses, see `THIRD_PARTY_LICENSES.md` and `licenses
 - 📸 **Instagram** — [@\fabiotechgarage](https://instagram.com/fabiotechgarage)
 - 👾 **Discord Server** - [Invite link](https://discord.gg/fMa5KDeFUV)
 - ☕ **Support the project** — [paypal.me/rossatof](https://paypal.me/rossatof)
+
