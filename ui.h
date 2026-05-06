@@ -1649,7 +1649,7 @@ void create_or_reload_settings_ui() {
 
   // Show "Made by" with heart icon
     lv_obj_t *made_by_label = lv_label_create(cont);
-    lv_label_set_text_fmt(made_by_label, "Made with *heart* by Fabio Rossato");
+    lv_label_set_text_fmt(made_by_label, "Made with *heart* by Fabio Rossato | fork by DRIV3R78");
     lv_obj_set_style_text_align(made_by_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_width(made_by_label, LV_PCT(100));
     lv_obj_set_style_text_font(made_by_label, &montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
