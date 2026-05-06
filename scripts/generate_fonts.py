@@ -17,6 +17,7 @@ English, Italian, Spanish, French, Dutch, German, Portuguese, Norwegian, Polish.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -31,15 +32,11 @@ ICON_RANGES = [
     61522, 61523, 61524, 61543, 61544, 61550, 61552, 61553, 61556, 61559,
     61560, 61561, 61563, 61587, 61589, 61636, 61637, 61639, 61671, 61674,
     61683, 61724, 61732, 61787, 61931, 62016, 62017, 62018, 62019, 62020,
-    62087, 62099, 62189, 62212, 62810, 63426, 63650,
+    62189, 62212, 62810, 63426,
 ]
 
-# Unicode coverage:
-# - Basic printable ASCII
-# - Latin-1 Supplement (accents like ä, ö, ü, é, ç, ñ, etc.)
-# - Latin Extended-A (Polish and other European diacritics)
-# - Euro sign
-TEXT_RANGES = "32-126,160-383,8364"
+FULL_TEXT_RANGES = "32-126,160-383,8364"
+RSS_EXTRA_CHARS = "“”„’‘–—…•«»‹›"
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,7 +75,69 @@ def parse_args() -> argparse.Namespace:
         default="npx lv_font_conv",
         help='Command used to run lv_font_conv (default: "npx lv_font_conv").',
     )
+    parser.add_argument(
+        "--profile",
+        choices=("lean", "full"),
+        default="lean",
+        help='Text coverage profile: "lean" (UI strings + common RSS punctuation) or "full" (32-126,160-383,8364).',
+    )
+    parser.add_argument(
+        "--no-compress",
+        action="store_true",
+        help="Disable lv_font_conv compression (larger output).",
+    )
     return parser.parse_args()
+
+
+def _extract_c_string_literals(content: str) -> list[str]:
+    matches = re.findall(r'"((?:\\.|[^"\\])*)"', content)
+    result: list[str] = []
+    for m in matches:
+        s = m.replace(r"\\", "\\")
+        s = s.replace(r"\"", "\"")
+        s = s.replace(r"\n", "\n")
+        s = s.replace(r"\r", "\r")
+        s = s.replace(r"\t", "\t")
+        result.append(s)
+    return result
+
+
+def _to_compact_ranges(codepoints: list[int]) -> str:
+    if not codepoints:
+        return ""
+    ranges: list[str] = []
+    start = prev = codepoints[0]
+    for cp in codepoints[1:]:
+        if cp == prev + 1:
+            prev = cp
+            continue
+        ranges.append(f"{start}-{prev}" if start != prev else f"{start}")
+        start = prev = cp
+    ranges.append(f"{start}-{prev}" if start != prev else f"{start}")
+    return ",".join(ranges)
+
+
+def build_lean_text_ranges(project_root: Path) -> str:
+    localized_strings = project_root / "localized_strings.h"
+    if not localized_strings.exists():
+        raise FileNotFoundError(f"Missing required file: {localized_strings}")
+
+    content = localized_strings.read_text(encoding="utf-8")
+    literals = _extract_c_string_literals(content)
+
+    cps = set(range(32, 127))  # Always keep printable ASCII.
+    cps.add(8364)              # Euro sign.
+
+    for s in literals:
+        for ch in s:
+            cp = ord(ch)
+            if cp >= 32:
+                cps.add(cp)
+
+    for ch in RSS_EXTRA_CHARS:
+        cps.add(ord(ch))
+
+    return _to_compact_ranges(sorted(cps))
 
 
 def run_font_conv(
@@ -87,14 +146,16 @@ def run_font_conv(
     montserrat_font: Path,
     fontawesome_font: Path,
     size: int,
+    text_ranges: str,
+    no_compress: bool,
 ) -> None:
     out_file = project_root / f"montserrat_{size}.c"
     icon_range_arg = ",".join(str(v) for v in ICON_RANGES)
-
     command = (
         f'{font_conv_cmd} '
-        f'--bpp 4 --size {size} --no-compress --stride 1 --align 1 '
-        f'--font "{montserrat_font}" --range {TEXT_RANGES} '
+        f'--bpp 4 --size {size} '
+        f'{"--no-compress " if no_compress else ""}'
+        f'--font "{montserrat_font}" --range {text_ranges} '
         f'--font "{fontawesome_font}" --range {icon_range_arg} '
         f'--format lvgl -o "{out_file}"'
     )
@@ -154,6 +215,13 @@ def main() -> int:
         print_missing_font_help(project_root, missing_paths)
         return 1
 
+    if args.profile == "full":
+        text_ranges = FULL_TEXT_RANGES
+    else:
+        text_ranges = build_lean_text_ranges(project_root)
+    print(f"[fonts] Text range profile: {args.profile}")
+    print(f"[fonts] Text ranges: {text_ranges}")
+
     for size in args.sizes:
         run_font_conv(
             font_conv_cmd=args.font_conv_cmd,
@@ -161,6 +229,8 @@ def main() -> int:
             montserrat_font=montserrat_font,
             fontawesome_font=fontawesome_font,
             size=size,
+            text_ranges=text_ranges,
+            no_compress=args.no_compress,
         )
 
     print("[fonts] Done.")
