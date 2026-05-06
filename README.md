@@ -76,11 +76,15 @@ The JC4827W543 is available [on Aliexpress at this link](https://s.click.aliexpr
 
 ## Flashing
 
-The easiest way to install the firmware is via the project website, directly from Chrome or Edge — no software needed:
+The web installer on the project website is available for the original Halo-F1 firmware by Fabio:
 
 **[halof1.com](https://halof1.com/)**
 
-If you want to compile from source, see the [Building from Source](#building-from-source) section below.
+For this fork, flashing is currently manual only:
+- compile in Arduino IDE
+- flash via USB from Arduino IDE
+
+See [Building from Source](#building-from-source) for the full steps.
 
 **Important:** Make sure to install the ipex antenna on the back of the board, this board won't be able to maintain a stable WiFi connection without it.
 
