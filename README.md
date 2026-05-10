@@ -94,8 +94,8 @@ See [Building from Source](#building-from-source) for the full steps.
 
 ### Requirements
 
-- [Arduino IDE](https://www.arduino.cc/en/software) 2.x
-- ESP32 Arduino core (`esp32` by Espressif, tested on **3.x**)
+- [Arduino IDE](https://www.arduino.cc/en/software) 2.3.6
+- ESP32 Arduino core (`esp32` by Espressif, tested on 3.3.4)
 
 ### Arduino Libraries
 
