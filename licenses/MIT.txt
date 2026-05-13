@@ -1,0 +1,6 @@
+MIT License
+
+Canonical text:
+https://opensource.org/license/mit
+
+SPDX-Identifier: MIT

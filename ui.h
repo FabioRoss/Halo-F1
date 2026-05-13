@@ -4,6 +4,8 @@ void update_driver_standings_ui();
 bool getLastSessionResults(SessionResults results[DRIVERS_NUMBER]);
 bool fetch_f1_driver_standings();
 static void populate_standings(lv_obj_t * container, int offset);
+static void populate_all_standings(lv_obj_t * container);
+static void start_standings_display_cycle(lv_obj_t * container);
 static void populate_results(lv_obj_t * container, int offset);
 bool getLatestNews(String &title, String &link, String &desc);
 void create_or_reload_news_ui(lv_timer_t *timer);
@@ -38,6 +40,80 @@ static lv_style_t style_standings_tab_btn_inactive;
 static lv_style_t style_standings_tab_list;
 static bool standings_tab_styles_initialized = false;
 
+static constexpr uint8_t NEWS_TAB_INDEX = 2;
+
+static void news_tab_pulse_anim_cb(void *var, int32_t v) {
+    lv_obj_t *btn = (lv_obj_t *)var;
+    if (!btn) return;
+    lv_obj_set_style_opa(btn, (lv_opa_t)v, LV_PART_MAIN | LV_STATE_DEFAULT);
+}
+
+static void stop_news_tab_pulse() {
+    if (!news_tab_button) return;
+    // Hard-stop all animations bound to this tab button to avoid any lingering pulse.
+    lv_anim_del(news_tab_button, NULL);
+    lv_obj_set_style_opa(news_tab_button, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+}
+
+static void start_news_tab_pulse() {
+    if (!news_tab_button || !newsPulseEnabled) return;
+
+    lv_anim_del(news_tab_button, news_tab_pulse_anim_cb);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, news_tab_button);
+    lv_anim_set_exec_cb(&a, news_tab_pulse_anim_cb);
+    // Stronger pulse: deeper dip + a bit faster.
+    lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_30);
+    lv_anim_set_time(&a, 650);
+    lv_anim_set_playback_time(&a, 650);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&a);
+}
+
+static void sync_news_tab_pulse_state() {
+    if (!news_tab_button) return;
+    if (hasUnreadNews && newsPulseEnabled && home_tabs && lv_tabview_get_tab_active(home_tabs) != NEWS_TAB_INDEX) {
+        start_news_tab_pulse();
+    } else {
+        stop_news_tab_pulse();
+    }
+}
+
+static void news_pulse_switch_handler(lv_event_t * e) {
+    lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
+    newsPulseEnabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+
+    sync_news_tab_pulse_state();
+
+    saveSettings();
+}
+
+static int standings_scroll_direction = 1;
+static uint8_t standings_scroll_hold_ticks = 0;
+static constexpr uint8_t STANDINGS_SCROLL_HOLD_TICKS = 12;
+static constexpr uint16_t STANDINGS_SCROLL_TIMER_MS = 120;
+static constexpr int8_t STANDINGS_SCROLL_STEP_PX = 1;
+
+static void standings_scroll_switch_handler(lv_event_t * e) {
+    lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
+    standingsAutoScrollEnabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    saveSettings();
+
+    // Apply mode change immediately to the currently visible race tab content.
+    create_or_reload_race_sessions(true);
+}
+
+static void news_tab_button_clicked_handler(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code != LV_EVENT_CLICKED &&
+        code != LV_EVENT_RELEASED &&
+        code != LV_EVENT_VALUE_CHANGED) return;
+    hasUnreadNews = false;
+    sync_news_tab_pulse_state();
+}
+
 
 void adjustBrightness(uint8_t new_brightness) {
   lv_bb_spi_lcd_t * dsc = (lv_bb_spi_lcd_t *)lv_display_get_driver_data(disp);
@@ -56,6 +132,21 @@ static void language_selection_event_handler(lv_event_t * e) {
       create_or_reload_standings_tab_ui();
       force_update_ui();
       //create_or_reload_news_ui(nullptr); //takes too long
+  }
+
+  saveSettings();
+}
+
+static void news_feed_selection_event_handler(lv_event_t * e) {
+  lv_obj_t* obj = (lv_obj_t *)lv_event_get_target(e);
+  uint16_t sel = lv_dropdown_get_selected(obj);
+
+  if (sel < NEWS_FEED_COUNT) {
+      selectedNewsFeed = (uint8_t)sel;
+      Serial.printf("[UI] News feed changed to: %s\n", newsFeedNames[selectedNewsFeed]);
+      fastNewsFetchMode = true;
+      create_or_reload_news_ui(nullptr);
+      fastNewsFetchMode = false;
   }
 
   saveSettings();
@@ -383,6 +474,75 @@ static void populate_standings(lv_obj_t * container, int offset) {
     //Serial.println("Populating standings DONE");
 }
 
+static void populate_all_standings(lv_obj_t * container) {
+    const int total = (current_season.driver_count > 0) ? current_season.driver_count : TOTAL_DRIVERS;
+    for (int idx = 0; idx < total && idx < TOTAL_DRIVERS; idx++) {
+        String points = String(current_season.driver_standings[idx].points) + " pt.";
+        create_standings_row(
+            container,
+            current_season.driver_standings[idx].position.c_str(),
+            current_season.driver_standings[idx].name.c_str(),
+            current_season.driver_standings[idx].surname.c_str(),
+            points.c_str(),
+            current_season.driver_standings[idx].constructorId
+        );
+    }
+}
+
+static void start_standings_display_cycle(lv_obj_t * container) {
+    if (standings_ui_timer) {
+        lv_timer_del(standings_ui_timer);
+        standings_ui_timer = NULL;
+    }
+    lv_anim_del(&style_fade, NULL);
+    standings_offset = 0;
+
+    if (!standingsAutoScrollEnabled) {
+        populate_standings(container, 0);
+        standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
+            animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
+        }, 15000, container);
+        return;
+    }
+
+    populate_all_standings(container);
+    lv_obj_scroll_to_y(container, 0, LV_ANIM_OFF);
+    standings_scroll_direction = 1;
+    standings_scroll_hold_ticks = STANDINGS_SCROLL_HOLD_TICKS;
+
+    standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
+        lv_obj_t *cont = (lv_obj_t *)lv_timer_get_user_data(t);
+        if (!cont) return;
+
+        if (standings_scroll_hold_ticks > 0) {
+            standings_scroll_hold_ticks--;
+            return;
+        }
+
+        int bottom_hidden = lv_obj_get_scroll_bottom(cont);
+        int top_hidden = lv_obj_get_scroll_top(cont);
+
+        if (standings_scroll_direction > 0) {
+            if (bottom_hidden <= 0) {
+                standings_scroll_direction = -1;
+                standings_scroll_hold_ticks = STANDINGS_SCROLL_HOLD_TICKS;
+                return;
+            }
+            // Forward pass: from P1 towards last place.
+            lv_obj_scroll_by(cont, 0, -STANDINGS_SCROLL_STEP_PX, LV_ANIM_OFF);
+            return;
+        }
+
+        if (top_hidden <= 0) {
+            standings_scroll_direction = 1;
+            standings_scroll_hold_ticks = STANDINGS_SCROLL_HOLD_TICKS;
+            return;
+        }
+        // Reverse pass: from last place back to P1.
+        lv_obj_scroll_by(cont, 0, STANDINGS_SCROLL_STEP_PX, LV_ANIM_OFF);
+    }, STANDINGS_SCROLL_TIMER_MS, container);
+}
+
 void animate_results(lv_obj_t * container) {
     if (!style_fade_inited) {
         lv_style_init(&style_fade);
@@ -616,12 +776,25 @@ lv_obj_t * create_language_selector(lv_obj_t * parent) {
 
   lv_obj_t *selector = lv_dropdown_create(obj);
 
-  String language_options;
+  char language_options[256];
+  size_t used = 0;
+  language_options[0] = '\0';
   for (size_t i = 0; i < languageCount; i++) {
-      language_options += languages[i].displayName;
-      if (i < languageCount - 1) language_options += "\n";
+      int written = snprintf(
+          language_options + used,
+          sizeof(language_options) - used,
+          (i < languageCount - 1) ? "%s\n" : "%s",
+          languages[i].displayName
+      );
+      if (written < 0) break;
+      if ((size_t)written >= sizeof(language_options) - used) {
+          used = sizeof(language_options) - 1;
+          language_options[used] = '\0';
+          break;
+      }
+      used += (size_t)written;
   }
-  lv_dropdown_set_options(selector, language_options.c_str());
+  lv_dropdown_set_options(selector, language_options);
 
   size_t currentIndex = 0;
   for (size_t i = 0; i < languageCount; i++) {
@@ -631,6 +804,38 @@ lv_obj_t * create_language_selector(lv_obj_t * parent) {
       }
   }
   lv_dropdown_set_selected(selector, currentIndex);
+
+  return selector;
+}
+
+lv_obj_t * create_news_feed_selector(lv_obj_t * parent) {
+  lv_obj_t *obj = create_text(parent, LV_SYMBOL_LIST, localized_text->news_feed_label, 1);
+  lv_obj_t *selector = lv_dropdown_create(obj);
+
+  char news_feed_options[192];
+  size_t used = 0;
+  news_feed_options[0] = '\0';
+  for (uint8_t i = 0; i < NEWS_FEED_COUNT; i++) {
+      int written = snprintf(
+          news_feed_options + used,
+          sizeof(news_feed_options) - used,
+          (i < NEWS_FEED_COUNT - 1) ? "%s\n" : "%s",
+          newsFeedNames[i]
+      );
+      if (written < 0) break;
+      if ((size_t)written >= sizeof(news_feed_options) - used) {
+          used = sizeof(news_feed_options) - 1;
+          news_feed_options[used] = '\0';
+          break;
+      }
+      used += (size_t)written;
+  }
+  lv_dropdown_set_options(selector, news_feed_options);
+
+  if (selectedNewsFeed >= NEWS_FEED_COUNT) selectedNewsFeed = 0;
+  lv_dropdown_set_selected(selector, selectedNewsFeed);
+  lv_obj_add_flag(selector, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+  lv_obj_set_width(selector, LV_PCT(100));
 
   return selector;
 }
@@ -865,10 +1070,7 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
             lv_obj_clean(standings_container);
 
             if (noSpoilerWasStandings) {
-                populate_standings(standings_container, 0);
-                standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
-                    animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
-                }, 15000, standings_container);
+                start_standings_display_cycle(standings_container);
             } else {
                 populate_results(standings_container, 0);
                 standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
@@ -924,9 +1126,7 @@ void create_or_reload_race_sessions(bool force_reload) {
 
   // ── Row width: same 90 % of screen that the old single labels used ─────────
   lv_coord_t row_w = (lv_coord_t)(SCREEN_WIDTH - 4);
-
-  // Weather-badge column is only shown when data is available.
-  const lv_coord_t WEATHER_W = 48;
+  const lv_coord_t WEATHER_SLOT = 56;
 
   for (int i = 0; i < next_race.sessionCount; i++) {
     session = next_race.sessions[i];
@@ -966,10 +1166,13 @@ void create_or_reload_race_sessions(bool force_reload) {
 
     if (is_active) last_session = session;
 
-    // ── 2. Session info label (fills available width) ───────────────────────
+    // ── 2. Session label + optional weather (no placeholder when data missing)
     session_label = lv_label_create(session_row);
     lv_obj_add_style(session_label, &style_session_label, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_flex_grow(session_label, 1);  // expands to fill space left of badge
+    lv_obj_set_flex_grow(session_label, 0);
+    const bool show_weather = weather_fetched && i < 10 && session_weather[i].valid;
+    lv_obj_set_width(session_label,
+                     show_weather ? (lv_coord_t)(row_w - WEATHER_SLOT) : row_w);
     lv_label_set_long_mode(session_label, LV_LABEL_LONG_MODE_SCROLL);
 
     if (next_race.isSprintWeekend &&
@@ -985,28 +1188,22 @@ void create_or_reload_race_sessions(bool force_reload) {
                               getSessionDateTimeFormatted(session.date, session.time));
     }
 
-    // ── 3. Weather badge (right-side, fixed width) ───────────────────────────
-    // Only rendered when Open-Meteo data has been fetched for this slot.
-    if (weather_fetched && i < 10 && session_weather[i].valid) {
-        lv_obj_t* w_lbl = lv_label_create(session_row);
-
-        // Icon glyph + temperature: e.g. "☀ 22°"
-        // The icon is rendered in weather_icons_16; the degree+number are
-        // rendered as plain text with the same font (digits are in every font).
-        char w_buf[16];
-        snprintf(w_buf, sizeof(w_buf), "%s %d\xC2\xB0",
+    if (show_weather) {
+        lv_obj_t *w_lbl = lv_label_create(session_row);
+        char w_buf[20];
+        snprintf(w_buf, sizeof(w_buf), " %s %d\xC2\xB0",
                  getWeatherIcon(session_weather[i].wmo_code),
                  (int)session_weather[i].temp_c);
         lv_label_set_text(w_lbl, w_buf);
 
-        lv_obj_set_width(w_lbl, WEATHER_W);
+        lv_obj_set_flex_grow(w_lbl, 0);
+        lv_obj_set_width(w_lbl, WEATHER_SLOT);
         lv_obj_set_height(w_lbl, LV_SIZE_CONTENT);
         lv_label_set_long_mode(w_lbl, LV_LABEL_LONG_MODE_CLIP);
 
-        lv_obj_set_style_text_font(w_lbl,  &weather_icons_12, LV_PART_MAIN);
-        lv_obj_set_style_text_align(w_lbl, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-        lv_obj_set_style_pad_right(w_lbl,  4, LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(w_lbl,     LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_text_font(w_lbl, &weather_icons_12, LV_PART_MAIN);
+        lv_obj_set_style_text_align(w_lbl, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(w_lbl, LV_OPA_TRANSP, LV_PART_MAIN);
 
         lv_color_t badge_color = is_active
             ? lv_color_white()
@@ -1042,12 +1239,7 @@ void create_or_reload_race_sessions(bool force_reload) {
       if (noSpoilerModeActive && !noSpoilerLifted) {
           show_spoiler_button(standings_container, true);  // true = hiding standings
       } else {
-          populate_standings(standings_container, 0);
-
-          standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
-              //Serial.println("Inside Standings Animation Timer");
-              animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
-          }, 15000, standings_container);
+          start_standings_display_cycle(standings_container);
       }
 
       check_delay = 30 * 60000;
@@ -1251,8 +1443,31 @@ void create_or_reload_news_ui(lv_timer_t *timer) {
     static String last_link = "";
     bool notifyNewArticle = false;
 
-    if (!getLatestNews(title, link, desc)) return;
-    if ((title == "" && desc == "") || link == "") return;
+    // If user is on News tab, ensure pulse is always fully stopped.
+    if (home_tabs && lv_tabview_get_tab_active(home_tabs) == NEWS_TAB_INDEX) {
+        hasUnreadNews = false;
+        sync_news_tab_pulse_state();
+    }
+
+    // Always clear the tab first so feed switches never leave stale content visible.
+    lv_obj_clean(tabs.news);
+
+    if (!getLatestNews(title, link, desc) || (title == "" && desc == "") || link == "") {
+        lv_obj_t *cont = lv_obj_create(tabs.news);
+        lv_obj_remove_style_all(cont);
+        lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
+        lv_obj_center(cont);
+        lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        lv_obj_t *label = lv_label_create(cont);
+        lv_label_set_text(label, localized_text->news_unavailable_for_selected_feed);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_width(label, LV_PCT(90));
+        lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+
+        return;
+    }
 
     if (last_link != link) {
         notifyNewArticle = true;
@@ -1291,9 +1506,6 @@ void create_or_reload_news_ui(lv_timer_t *timer) {
         lv_style_set_width(&style_qr_caption, 100);
     }
 
-    // Clean container
-    lv_obj_clean(tabs.news);
-
     lv_obj_t *cont = lv_obj_create(tabs.news);
     lv_obj_remove_style_all(cont);
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
@@ -1314,8 +1526,6 @@ void create_or_reload_news_ui(lv_timer_t *timer) {
     lv_obj_set_height(label, LV_SIZE_CONTENT);
     lv_obj_set_width(label, LV_PCT(100));
     lv_obj_add_style(label, &style_news_title, LV_PART_MAIN);
-
-    //Serial.println("News Title Label Created");
 
     // Description label
     label = lv_label_create(cont);
@@ -1351,6 +1561,13 @@ void create_or_reload_news_ui(lv_timer_t *timer) {
     if (notifyNewArticle) {
         Serial.println("[UI] Article Link is new, running notification routine for new article fetched.");
         playNotificationSound();
+        if (home_tabs && lv_tabview_get_tab_active(home_tabs) != NEWS_TAB_INDEX) {
+            hasUnreadNews = true;
+            sync_news_tab_pulse_state();
+        } else {
+            hasUnreadNews = false;
+            sync_news_tab_pulse_state();
+        }
         //lv_tabview_set_active(home_tabs, 1, LV_ANIM_ON); // switch to article tab -- place under a bool switch in settings
     }
 }
@@ -1385,9 +1602,18 @@ void create_or_reload_settings_ui() {
 
   // -- Race Settings --
   create_settings_divider(cont, localized_text->race);
+  // News Feed Source
+  news_feed_selector = create_news_feed_selector(cont);
+  lv_obj_add_event_cb(news_feed_selector, news_feed_selection_event_handler, LV_EVENT_VALUE_CHANGED, NULL);
+
   // No Spoiler Mode
   no_spoiler_switch = create_switch(cont, LV_SYMBOL_WARNING, localized_text->no_spoiler_mode, noSpoilerModeActive);
   lv_obj_add_event_cb(no_spoiler_switch, no_spoiler_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
+  // News pulse effect
+  news_pulse_switch = create_switch(cont, LV_SYMBOL_BELL, localized_text->news_pulse_effect_label, newsPulseEnabled);
+  lv_obj_add_event_cb(news_pulse_switch, news_pulse_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
+  standings_scroll_mode_switch = create_switch(cont, LV_SYMBOL_LIST, localized_text->standings_scroll_mode_label, standingsAutoScrollEnabled);
+  lv_obj_add_event_cb(standings_scroll_mode_switch, standings_scroll_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
 
   // -- Timezone Settings --
   create_settings_divider(cont, localized_text->time_settings);
@@ -1423,7 +1649,7 @@ void create_or_reload_settings_ui() {
 
   // Show "Made by" with heart icon
     lv_obj_t *made_by_label = lv_label_create(cont);
-    lv_label_set_text_fmt(made_by_label, "Made with *heart* by Fabio Rossato");
+    lv_label_set_text_fmt(made_by_label, "Made with *heart* by Fabio Rossato | fork by DRIV3R78");
     lv_obj_set_style_text_align(made_by_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_width(made_by_label, LV_PCT(100));
     lv_obj_set_style_text_font(made_by_label, &montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -1654,6 +1880,11 @@ lv_obj_t * create_main_tabview(lv_obj_t * screen) {
         lv_obj_set_style_bg_color(button, lv_color_black(), LV_PART_MAIN | LV_STATE_CHECKED);
         lv_obj_set_style_border_side(button, LV_BORDER_SIDE_TOP, LV_PART_MAIN | LV_STATE_CHECKED);
         lv_obj_set_style_border_width(button, 3, LV_PART_MAIN | LV_STATE_CHECKED);
+        if (i == NEWS_TAB_INDEX) {
+            news_tab_button = button;
+            lv_obj_add_event_cb(news_tab_button, news_tab_button_clicked_handler, LV_EVENT_ALL, NULL);
+            sync_news_tab_pulse_state();
+        }
     }
 
     return tabview;

@@ -1,13 +1,13 @@
 // ============================================================
 //  weather.h  –  Race-session weather via Open-Meteo (free, no key)
 //
-//  Include AFTER the global struct definitions in F1Halo.ino
+//  Include AFTER the global struct definitions in Halo-F1.ino
 //  and BEFORE ui.h and wifi_handler.h.
 //
 //  Public surface used by ui.h:
 //    session_weather[]   – per-session data array (indexed like next_race.sessions[])
 //    weather_fetched     – true once at least one successful fetch happened
-//    getWeatherIconText  – returns a short ASCII tag for the WMO code
+//    getWeatherIcon      – returns the glyph for the WMO code
 //    getWeatherColor     – returns an lv_color_t matching the condition
 //
 //  Public surface used by wifi_handler.h:
@@ -27,8 +27,9 @@ struct SessionWeather {
 static SessionWeather session_weather[10];
 static bool           weather_fetched      = false;
 static unsigned long  last_weather_fetch_ms = 0;
+static String         last_weather_race_key = "";
 
-// How often we re-fetch (3 h in normal running; the f1_api_timer fires every hour
+// How often we re-fetch (1 h in normal running; the f1_api_timer fires every hour
 // and calls fetchWeatherForRace, which guards with this value so the real cadence
 // is "once per hour" without an extra timer)
 #define WEATHER_REFRESH_MS (3600000UL)
@@ -51,7 +52,7 @@ static unsigned long  last_weather_fetch_ms = 0;
 //   95,96,99 → thunderstorm
 
 // Returns the UTF-8 FontAwesome glyph string for a WMO weather code.
-// Symbols are defined in F1Halo.ino and rendered with weather_icons_16.
+// Symbols are defined in Halo-F1.ino and rendered with weather_icons_16.
 const char* getWeatherIcon(uint8_t code) {
     if (code == 0)        return WX_SYMBOL_SUN;
     if (code <= 2)        return WX_SYMBOL_CLOUD_SUN;
@@ -89,9 +90,28 @@ lv_color_t getWeatherColor(uint8_t code) {
 bool fetchWeatherForRace(NextRaceInfo& race) {
     if (race.sessionCount <= 0) return false;
 
+    // Build a stable key for the currently loaded race weekend.
+    // If this changes, cached weather belongs to a different weekend and must
+    // not be reused even if the time-based refresh window is still active.
+    String race_key = race.raceName + "|" +
+                      race.sessions[0].date + "|" +
+                      race.sessions[race.sessionCount - 1].date + "|" +
+                      String(race.lat, 4) + "|" +
+                      String(race.lon, 4);
+    bool race_changed = (last_weather_race_key.length() == 0) ? false : (race_key != last_weather_race_key);
+    if (race_changed) {
+        Serial.println("[Weather] Race changed, invalidating cached weather.");
+        for (int s = 0; s < 10; s++) {
+            session_weather[s] = { 0, 0, false };
+        }
+        weather_fetched = false;
+        last_weather_fetch_ms = 0;
+    }
+
     // ── Throttle: don't hit the API more than once per WEATHER_REFRESH_MS ──
     unsigned long now_ms = millis();
-    if (weather_fetched &&
+    if (!race_changed &&
+        weather_fetched &&
         (now_ms - last_weather_fetch_ms) < WEATHER_REFRESH_MS &&
         now_ms > last_weather_fetch_ms) {
         // Still fresh — nothing to do
@@ -222,6 +242,7 @@ bool fetchWeatherForRace(NextRaceInfo& race) {
 
     weather_fetched       = true;
     last_weather_fetch_ms = millis();
+    last_weather_race_key = race_key;
     Serial.println("[Weather] Fetch complete.");
     return true;
 }

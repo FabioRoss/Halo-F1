@@ -1,6 +1,10 @@
 // Disable the automatic pin remapping of the API calls in this file
 #define ARDUINO_CORE_BUILD
 
+// This file contains code adapted from the Arduino ESP32 core I2S implementation.
+// Upstream: https://github.com/espressif/arduino-esp32
+// License: LGPL-2.1 (see THIRD_PARTY_LICENSES.md and licenses/LGPL-2.1.txt)
+
 #include "ESP_I2S.h"
 
 #if SOC_I2S_SUPPORTED
