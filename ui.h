@@ -4,6 +4,8 @@ void update_driver_standings_ui();
 bool getLastSessionResults(SessionResults results[DRIVERS_NUMBER]);
 bool fetch_f1_driver_standings();
 static void populate_standings(lv_obj_t * container, int offset);
+static void populate_all_standings(lv_obj_t * container);
+static void start_standings_display_cycle(lv_obj_t * container);
 static void populate_results(lv_obj_t * container, int offset);
 bool getLatestNews(String &title, String &link, String &desc);
 void create_or_reload_news_ui(lv_timer_t *timer);
@@ -86,6 +88,21 @@ static void news_pulse_switch_handler(lv_event_t * e) {
     sync_news_tab_pulse_state();
 
     saveSettings();
+}
+
+static int standings_scroll_direction = 1;
+static uint8_t standings_scroll_hold_ticks = 0;
+static constexpr uint8_t STANDINGS_SCROLL_HOLD_TICKS = 12;
+static constexpr uint16_t STANDINGS_SCROLL_TIMER_MS = 120;
+static constexpr int8_t STANDINGS_SCROLL_STEP_PX = 1;
+
+static void standings_scroll_switch_handler(lv_event_t * e) {
+    lv_obj_t * sw = (lv_obj_t *) lv_event_get_target(e);
+    standingsAutoScrollEnabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    saveSettings();
+
+    // Apply mode change immediately to the currently visible race tab content.
+    create_or_reload_race_sessions(true);
 }
 
 static void news_tab_button_clicked_handler(lv_event_t * e) {
@@ -455,6 +472,75 @@ static void populate_standings(lv_obj_t * container, int offset) {
     }
 
     //Serial.println("Populating standings DONE");
+}
+
+static void populate_all_standings(lv_obj_t * container) {
+    const int total = (current_season.driver_count > 0) ? current_season.driver_count : TOTAL_DRIVERS;
+    for (int idx = 0; idx < total && idx < TOTAL_DRIVERS; idx++) {
+        String points = String(current_season.driver_standings[idx].points) + " pt.";
+        create_standings_row(
+            container,
+            current_season.driver_standings[idx].position.c_str(),
+            current_season.driver_standings[idx].name.c_str(),
+            current_season.driver_standings[idx].surname.c_str(),
+            points.c_str(),
+            current_season.driver_standings[idx].constructorId
+        );
+    }
+}
+
+static void start_standings_display_cycle(lv_obj_t * container) {
+    if (standings_ui_timer) {
+        lv_timer_del(standings_ui_timer);
+        standings_ui_timer = NULL;
+    }
+    lv_anim_del(&style_fade, NULL);
+    standings_offset = 0;
+
+    if (!standingsAutoScrollEnabled) {
+        populate_standings(container, 0);
+        standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
+            animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
+        }, 15000, container);
+        return;
+    }
+
+    populate_all_standings(container);
+    lv_obj_scroll_to_y(container, 0, LV_ANIM_OFF);
+    standings_scroll_direction = 1;
+    standings_scroll_hold_ticks = STANDINGS_SCROLL_HOLD_TICKS;
+
+    standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
+        lv_obj_t *cont = (lv_obj_t *)lv_timer_get_user_data(t);
+        if (!cont) return;
+
+        if (standings_scroll_hold_ticks > 0) {
+            standings_scroll_hold_ticks--;
+            return;
+        }
+
+        int bottom_hidden = lv_obj_get_scroll_bottom(cont);
+        int top_hidden = lv_obj_get_scroll_top(cont);
+
+        if (standings_scroll_direction > 0) {
+            if (bottom_hidden <= 0) {
+                standings_scroll_direction = -1;
+                standings_scroll_hold_ticks = STANDINGS_SCROLL_HOLD_TICKS;
+                return;
+            }
+            // Forward pass: from P1 towards last place.
+            lv_obj_scroll_by(cont, 0, -STANDINGS_SCROLL_STEP_PX, LV_ANIM_OFF);
+            return;
+        }
+
+        if (top_hidden <= 0) {
+            standings_scroll_direction = 1;
+            standings_scroll_hold_ticks = STANDINGS_SCROLL_HOLD_TICKS;
+            return;
+        }
+        // Reverse pass: from last place back to P1.
+        lv_obj_scroll_by(cont, 0, STANDINGS_SCROLL_STEP_PX, LV_ANIM_OFF);
+    }, STANDINGS_SCROLL_TIMER_MS, container);
 }
 
 void animate_results(lv_obj_t * container) {
@@ -984,10 +1070,7 @@ void show_spoiler_button(lv_obj_t *container, bool wasStandings) {
             lv_obj_clean(standings_container);
 
             if (noSpoilerWasStandings) {
-                populate_standings(standings_container, 0);
-                standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
-                    animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
-                }, 15000, standings_container);
+                start_standings_display_cycle(standings_container);
             } else {
                 populate_results(standings_container, 0);
                 standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
@@ -1043,9 +1126,7 @@ void create_or_reload_race_sessions(bool force_reload) {
 
   // ── Row width: same 90 % of screen that the old single labels used ─────────
   lv_coord_t row_w = (lv_coord_t)(SCREEN_WIDTH - 4);
-
-  // Weather-badge column is only shown when data is available.
-  const lv_coord_t WEATHER_W = 48;
+  const lv_coord_t WEATHER_SLOT = 56;
 
   for (int i = 0; i < next_race.sessionCount; i++) {
     session = next_race.sessions[i];
@@ -1085,10 +1166,13 @@ void create_or_reload_race_sessions(bool force_reload) {
 
     if (is_active) last_session = session;
 
-    // ── 2. Session info label (fills available width) ───────────────────────
+    // ── 2. Session label + optional weather (no placeholder when data missing)
     session_label = lv_label_create(session_row);
     lv_obj_add_style(session_label, &style_session_label, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_flex_grow(session_label, 1);  // expands to fill space left of badge
+    lv_obj_set_flex_grow(session_label, 0);
+    const bool show_weather = weather_fetched && i < 10 && session_weather[i].valid;
+    lv_obj_set_width(session_label,
+                     show_weather ? (lv_coord_t)(row_w - WEATHER_SLOT) : row_w);
     lv_label_set_long_mode(session_label, LV_LABEL_LONG_MODE_SCROLL);
 
     if (next_race.isSprintWeekend &&
@@ -1104,28 +1188,22 @@ void create_or_reload_race_sessions(bool force_reload) {
                               getSessionDateTimeFormatted(session.date, session.time));
     }
 
-    // ── 3. Weather badge (right-side, fixed width) ───────────────────────────
-    // Only rendered when Open-Meteo data has been fetched for this slot.
-    if (weather_fetched && i < 10 && session_weather[i].valid) {
-        lv_obj_t* w_lbl = lv_label_create(session_row);
-
-        // Icon glyph + temperature: e.g. "☀ 22°"
-        // The icon is rendered in weather_icons_16; the degree+number are
-        // rendered as plain text with the same font (digits are in every font).
-        char w_buf[16];
-        snprintf(w_buf, sizeof(w_buf), "%s %d\xC2\xB0",
+    if (show_weather) {
+        lv_obj_t *w_lbl = lv_label_create(session_row);
+        char w_buf[20];
+        snprintf(w_buf, sizeof(w_buf), " %s %d\xC2\xB0",
                  getWeatherIcon(session_weather[i].wmo_code),
                  (int)session_weather[i].temp_c);
         lv_label_set_text(w_lbl, w_buf);
 
-        lv_obj_set_width(w_lbl, WEATHER_W);
+        lv_obj_set_flex_grow(w_lbl, 0);
+        lv_obj_set_width(w_lbl, WEATHER_SLOT);
         lv_obj_set_height(w_lbl, LV_SIZE_CONTENT);
         lv_label_set_long_mode(w_lbl, LV_LABEL_LONG_MODE_CLIP);
 
-        lv_obj_set_style_text_font(w_lbl,  &weather_icons_12, LV_PART_MAIN);
-        lv_obj_set_style_text_align(w_lbl, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-        lv_obj_set_style_pad_right(w_lbl,  4, LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(w_lbl,     LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_text_font(w_lbl, &weather_icons_12, LV_PART_MAIN);
+        lv_obj_set_style_text_align(w_lbl, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(w_lbl, LV_OPA_TRANSP, LV_PART_MAIN);
 
         lv_color_t badge_color = is_active
             ? lv_color_white()
@@ -1161,12 +1239,7 @@ void create_or_reload_race_sessions(bool force_reload) {
       if (noSpoilerModeActive && !noSpoilerLifted) {
           show_spoiler_button(standings_container, true);  // true = hiding standings
       } else {
-          populate_standings(standings_container, 0);
-
-          standings_ui_timer = lv_timer_create([](lv_timer_t *t) {
-              //Serial.println("Inside Standings Animation Timer");
-              animate_standings((lv_obj_t *)lv_timer_get_user_data(t));
-          }, 15000, standings_container);
+          start_standings_display_cycle(standings_container);
       }
 
       check_delay = 30 * 60000;
@@ -1539,6 +1612,8 @@ void create_or_reload_settings_ui() {
   // News pulse effect
   news_pulse_switch = create_switch(cont, LV_SYMBOL_BELL, localized_text->news_pulse_effect_label, newsPulseEnabled);
   lv_obj_add_event_cb(news_pulse_switch, news_pulse_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
+  standings_scroll_mode_switch = create_switch(cont, LV_SYMBOL_LIST, localized_text->standings_scroll_mode_label, standingsAutoScrollEnabled);
+  lv_obj_add_event_cb(standings_scroll_mode_switch, standings_scroll_switch_handler, LV_EVENT_VALUE_CHANGED, NULL);
 
   // -- Timezone Settings --
   create_settings_divider(cont, localized_text->time_settings);
@@ -1574,7 +1649,7 @@ void create_or_reload_settings_ui() {
 
   // Show "Made by" with heart icon
     lv_obj_t *made_by_label = lv_label_create(cont);
-    lv_label_set_text_fmt(made_by_label, "Made with *heart* by Fabio Rossato");
+    lv_label_set_text_fmt(made_by_label, "Made with *heart* by Fabio Rossato | fork by DRIV3R78");
     lv_obj_set_style_text_align(made_by_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_width(made_by_label, LV_PCT(100));
     lv_obj_set_style_text_font(made_by_label, &montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);

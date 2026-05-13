@@ -25,9 +25,9 @@ const int DRIVERS_NUMBER = 22;
 #define SCREEN_HEIGHT 480
 
 #ifdef TOUCH_CAPACITIVE
-const String fw_version = "1.2.3-beta";
+const String fw_version = "1.2.3-fork.1";
 #else
-const String fw_version = "1.2.3-R-beta";
+const String fw_version = "1.2.3-R-fork.1";
 #endif
 
 
@@ -179,22 +179,33 @@ lv_obj_t * no_spoiler_switch; bool noSpoilerModeActive = true;
 lv_obj_t * brightness_slider, *night_brightness_slider; uint8_t brightness = 255, night_brightness = 30;
 lv_obj_t * news_feed_selector; uint8_t selectedNewsFeed = 0;
 lv_obj_t * news_pulse_switch; bool newsPulseEnabled = true;
+lv_obj_t * standings_scroll_mode_switch; bool standingsAutoScrollEnabled = false;
 bool fastNewsFetchMode = false;
 
-const uint8_t NEWS_FEED_COUNT = 5;
+const uint8_t NEWS_FEED_COUNT = 10;
 const char * const newsFeedNames[NEWS_FEED_COUNT] = {
   "The Race (EN)",
   "Formula1.com (EN)",
   "Motorsport-Total (DE)",
   "RacingNews365 (NL)",
-  "FormulaPassion (IT)"
+  "FormulaPassion (IT)",
+  "Motorsport.com (ES)",
+  "F1Only.fr (FR)",
+  "Grande Premio (PT)",
+  "Formel-1.no (NO)",
+  "Wyprzedz Mnie! (PL)"
 };
 const char * const newsFeedUrls[NEWS_FEED_COUNT] = {
   "https://www.the-race.com/category/formula-1/rss/",
   "https://www.formula1.com/en/latest/all.xml",
   "https://www.motorsport-total.com/rss/rss_formel-1.xml",
   "https://racingnews365.nl/feed/news.xml",
-  "https://www.formulapassion.it/motorsport/formula-1/feed"
+  "https://www.formulapassion.it/motorsport/formula-1/feed",
+  "https://espanol.motorsport.com/rss/f1/news/",
+  "https://f1only.fr/feed/",
+  "https://www.grandepremio.com.br/feed/",
+  "https://formel-1.no/feed/",
+  "https://oldf1wm.pl/rss_f1.php"
 };
 
 // No-Spoiler lift state (not a setting — temporary per-session override)

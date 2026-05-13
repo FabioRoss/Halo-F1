@@ -1,5 +1,9 @@
 #pragma once
 
+// This file contains code adapted from the Arduino ESP32 core I2S implementation.
+// Upstream: https://github.com/espressif/arduino-esp32
+// License: LGPL-2.1 (see THIRD_PARTY_LICENSES.md and licenses/LGPL-2.1.txt)
+
 #if defined __has_include && __has_include("mp3dec.h")
 #define ARDUINO_HAS_MP3_DECODER 1
 #endif

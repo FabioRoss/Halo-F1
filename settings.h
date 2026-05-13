@@ -1,4 +1,4 @@
-#define SETTINGS_VERSION 3
+#define SETTINGS_VERSION 4
 
 struct SavedSettingsV1 {
     uint8_t  version;
@@ -32,6 +32,24 @@ struct SavedSettingsV2 {
 };
 
 struct SavedSettings {
+    uint8_t  version;
+    uint8_t  brightness;
+    uint8_t  night_brightness;
+    bool     nightModeActive;
+    uint8_t  nightStart_h;
+    uint8_t  nightStart_m;
+    uint8_t  nightStop_h;
+    uint8_t  nightStop_m;
+    bool     noSpoilerModeActive;
+    bool     timezoneOverrideActive;
+    int32_t  UTCoffsetHours;
+    uint8_t  languageIndex;
+    uint8_t  newsFeedIndex;
+    bool     newsPulseEnabled;
+    bool     standingsAutoScrollEnabled;
+};
+
+struct SavedSettingsV3 {
     uint8_t  version;
     uint8_t  brightness;
     uint8_t  night_brightness;
@@ -99,6 +117,7 @@ void saveSettings() {
     }
     s.newsFeedIndex        = selectedNewsFeed;
     s.newsPulseEnabled     = newsPulseEnabled;
+    s.standingsAutoScrollEnabled = standingsAutoScrollEnabled;
 
     Serial.println("[Preferences] Saving settings to flash...");
 
@@ -154,7 +173,23 @@ void loadSettings() {
         );
         applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
         newsPulseEnabled = s.newsPulseEnabled;
+        standingsAutoScrollEnabled = s.standingsAutoScrollEnabled;
         Serial.println("[Preferences] Settings loaded from flash.");
+        return;
+    }
+
+    if (rawVersion == 3 && len >= sizeof(SavedSettingsV3)) {
+        SavedSettingsV3 s{};
+        memcpy(&s, raw, sizeof(SavedSettingsV3));
+        applyLoadedSettingsCommon(
+            s.brightness, s.night_brightness, s.nightModeActive,
+            s.nightStart_h, s.nightStart_m, s.nightStop_h, s.nightStop_m,
+            s.noSpoilerModeActive, s.timezoneOverrideActive, s.UTCoffsetHours
+        );
+        applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
+        newsPulseEnabled = s.newsPulseEnabled;
+        standingsAutoScrollEnabled = false;
+        Serial.println("[Preferences] Loaded legacy v3 settings from flash.");
         return;
     }
 
@@ -168,6 +203,7 @@ void loadSettings() {
         );
         applyLanguageAndFeed(s.languageIndex, s.newsFeedIndex);
         newsPulseEnabled = true;
+        standingsAutoScrollEnabled = false;
         Serial.println("[Preferences] Loaded legacy v2 settings from flash.");
         return;
     }
@@ -182,6 +218,7 @@ void loadSettings() {
         );
         applyLanguageAndFeed(s.languageIndex, 0);
         newsPulseEnabled = true;
+        standingsAutoScrollEnabled = false;
         Serial.println("[Preferences] Loaded legacy v1 settings from flash.");
         return;
     }
